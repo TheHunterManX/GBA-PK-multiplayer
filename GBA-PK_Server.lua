@@ -17,7 +17,9 @@ local u32 MapAddress = 0
 local u32 MapAddress2 = 0
 local PlayerID = 1
 local ScriptTime = 0
+local ScriptTimePrev = 0
 local initialized = 0
+local ScriptTimeFrame = 4
 
 --Internet Play
 --local tcp = assert(socket.tcp())
@@ -25,6 +27,7 @@ local SocketMain = socket:tcp()
 local Player2 = socket:tcp()
 local Player3 = socket:tcp()
 local Player4 = socket:tcp()
+local Player1ID = "None"
 local Player2ID = "None"
 local Player3ID = "None"
 local Player4ID = "None"
@@ -36,6 +39,7 @@ local timeout1 = 0
 local timeout2 = 0
 local timeout3 = 0
 local ReturnConnectionType = ""
+local FramesPS = 0
 
 --Server Switches
 local Player1Vis = 1
@@ -160,8 +164,6 @@ local PlayerYCamera2 = 0
 local u8 PlayerFacing = 0
 local u16 ActualPlayerExtra1 = 0
 local u8 ActualPlayerExtra2 = 0
-local u8 ActualPlayerExtra3 = 0
-local u8 ActualPlayerExtra4 = 0
 --If 0 then don't render players
 
 --Animation frames
@@ -173,21 +175,13 @@ local Player3AnimationFrame = 0
 local Player3AnimationFrame2 = 0
 local Player4AnimationFrame = 0
 local Player4AnimationFrame2 = 0
+local PlayerPrevAnimation = {0,0,0,0}
 
 --Addresses
 local u32 Player1Address = 0
 local u32 Player2Address = 0
 local u32 Player3Address = 0
 local u32 Player4Address = 0
-local u32 PlayerYAddress = 0
-local u32 PlayerYAddress = 0
-local u32 PlayerXAddress = 0
-local u32 PlayerFaceAddress = 0
-local u32 PlayerSpriteAddress = 0
-local u32 PlayerExtra1Address = 0
-local u32 PlayerExtra2Address = 0
-local u32 PlayerExtra3Address = 0
-local u32 PlayerExtra4Address = 0
 
 
 local AnimatePlayerMoveX = 0
@@ -200,40 +194,34 @@ local FFTimer = 0
 local FFTimer2 = 0
 local ScreenData = 0
 
+local Pokemon = {"","","","","",""}
 
-					--Decryption for packet (unfortunately if I do not initialize it here it won't work)
-					local GameCodeTemp = ""
-					local NicknameTemp = ""
-					local PlayerIDTemp = 0
-					local ConnectionTypeTemp = ""
-					local Connection1TempVar1 = 0
-					local Connection1TempVar2 = 0
-					local Connection1TempVar3 = 0
-					local Connection1TempVar4 = 0
-					local Player1XTemp = 0
-					local Player1YTemp = 0
-					local Player1FacingTemp = 0
-					local Player2XTemp = 0
-					local Player2YTemp = 0
-					local Player2FacingTemp = 0
-					local Player3XTemp = 0
-					local Player3YTemp = 0
-					local Player3FacingTemp = 0
-					local Player4XTemp = 0
-					local Player4YTemp = 0
-					local Player4FacingTemp = 0
-					local Player1ExtraTemp1 = 0
-					local Player1ExtraTemp2 = 0
-					local Player2ExtraTemp1 = 0
-					local Player2ExtraTemp2 = 0
-					local Player3ExtraTemp1 = 0
-					local Player3ExtraTemp2 = 0
-					local Player4ExtraTemp1 = 0
-					local Player4ExtraTemp2 = 0
-					local MapIDTemp = ""
-					local ConfirmEncrypt = 0
-					local PrevMapIDTemp = 0
-					local MapIDConnection = 0
+local EnemyPokemon = {"","","","","",""}
+
+local Keypressholding = 0
+local LockFromScript = 0
+local HideSeek = 0
+local HideSeekTimer = 0
+local ROMCARD
+if not (emu == nil) then ROMCARD = emu.memory.cart0 end
+local BufferString = "None"
+local PrevExtraAdr = 0
+local SendTimer = 0
+local Var8000 = {}
+local u32 Var8000Adr = {}
+local Startvaraddress = 0
+local TextSpeedWait = 0
+local OtherPlayerHasCancelled = 0
+local TradeVars = {0,0,0,0,0}
+local EnemyTradeVars = {0,0,0,0,0}
+local BattleVars = {0,0,0,0,0,0,0,0,0,0,0}
+local EnemyBattleVars = {0,0,0,0,0,0,0,0,0,0,0}
+local BufferVars = {0,0,0}
+TradeVars[5] = 1000000000100000000010000000001000000000
+
+
+					--Decryption for positioning/small packetts
+					local ReceiveDataSmall = {}
 					
 --Debug time is how long in frames each message should show. once every 300 frames, or 5 seconds, should be plenty
 local DebugTime = 300
@@ -244,6 +232,9 @@ local TempVar2 = 0
 local TempVar3 = 0
 
 function ClearAllVar()
+
+	LockFromScript = 0
+	
 	 GameID = ""
 	 GameCode = "None"
 --	 Nickname = ""
@@ -347,8 +338,6 @@ function ClearAllVar()
 	 PlayerFacing = 0
 	 ActualPlayerExtra1 = 0
 	 ActualPlayerExtra2 = 0
-	 ActualPlayerExtra3 = 0
-	 ActualPlayerExtra4 = 0
 --If 0 then don't render players
 	ScreenData = 0
 
@@ -400,11 +389,11 @@ end
 --To fit everything in 1 file, I must unfortunately clog this file with a lot of sprite data. Luckily, this does not lag the game. It is just hard to read.
 --Also, if you are looking at this, then I am sorry. Truly      -TheHunterManX
 function createChars(StartAddressNo, SpriteID, SpriteNo)
-	--0 = Tile 120, 1 = Tile 126, etc...
-	--Tile number 120 = Player1
-	--Tile number 122 = Player2
-	--Tile number 124 = Player3
-	--Tile number 126 = Player4
+	--0 = Tile 184, 1 = Tile 188, etc...
+	--Tile number 184 = Player1
+	--Tile number 188 = Player2
+	--Tile number 192 = Player3
+	--Tile number 196 = Player4
 	--First will be the 4 bytes, or 32 bits
 	--SpriteID means a sprite from the chart below
 	--1 = Side Left (Right must be set with facing variable)
@@ -415,11 +404,12 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 	--13-18 = Biking
 	--19-21 = Running Idle Positions
 	--22-27 = Running
+	--28-33 = Surfing stuff
 	
 	
-	--Start address. 100743168 = 06013800 = 120th tile. can safely use 16.
+	--Start address. 100745216 = 06014000 = 184th tile. can safely use 32.
 	--Because the actual data doesn't start until 06013850, we will skip 50 hexbytes, or 80 decibytes
-	local ActualAddress = 100743168 + (StartAddressNo * 512) + 80
+	local ActualAddress = 100745216 + (StartAddressNo * 1024) + 80
 	--Firered Male Sprite
 	if SpriteNo == 0 then
 		if SpriteID == 1 then
@@ -6304,6 +6294,2667 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
 		SpriteTempVar0 = SpriteTempVar0 + 4 
  		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 28 then
+		--Surf down idle Cycle 1
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1727987712
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003201792
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199599
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65382
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16148087
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258369399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906295
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 15
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718265455
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1722459897
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1722808576
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4285071360
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4134184550
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2674567782
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 10484326
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 38655
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 29 then
+		--Surf up idle Cycle 1
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2013200384
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004250368
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199599
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986927
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16148343
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258369399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 15
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986927
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717987065
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718615952
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2583064320
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9857280
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 626688
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2674288230
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 167769702
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16150425
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9857280
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 626688
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 30 then
+		--Surf side idle Cycle 1
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4293918720
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718025984
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1046118
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415919104
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415919104
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199728
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199590
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717987942
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718004399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718004399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 267806311
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986919
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2559
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3942
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717988089
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718024592
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4294545408
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2566914048
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4284900966
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577360486
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 630783
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 153
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 40806
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 153
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 31 then
+		--Surf down idle Cycle 2
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415919104
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4186963968
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1727987712
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003201792
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199599
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65382
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16148087
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258369399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906295
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2463
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576351232
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2566914048
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718265593
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1722460569
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1869191424
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2674566758
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577050214
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 10065654
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2457
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 153
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 32 then
+		--Surf up idle Cycle 2
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4186963968
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2013200384
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004250368
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199599
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986927
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16148343
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258369399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2463
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576351232
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2566914048
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986927
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717987065
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4194303897
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576771472
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 10066176
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2674288230
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2583691167
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 160852377
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 10066176
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2457
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 153
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 33 then
+		--Surf side idle Cycle 2
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4293918720
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2566914048
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718025984
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199728
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199590
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717987942
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718004390
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1046118
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 267806311
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986919
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 40959
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2463
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415919104
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718004393
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718024601
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1869191568
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576941056
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1777755750
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2426011503
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 629145
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 40806
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 39270
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2457
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 34 then
+		--Surf sit down
+		SpriteTempVar0 = ActualAddress 
+ 		SpriteTempVar1 = 2290614272
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149692928
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149627392
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149645824
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 34952
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 576443
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 572347
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9223099
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149713152
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2630668032
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3402269168
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576806896
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717784320
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 790839040
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 607338496
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 860843776
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16567227
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16567497
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 253275308
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255814041
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16004710
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 15938290
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 275266
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16184371
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4291781184
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2898670400
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4135056384
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2137452544
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4284936192
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16711680
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 69663999
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 70479050
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 5207919
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1009399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1009407
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65280
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 35 then
+		--Surf sit up
+		SpriteTempVar0 = ActualAddress 
+ 		SpriteTempVar1 = 2290614272
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149692928
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149627392
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149645824
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 34952
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 576443
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 572347
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9223099
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149711360
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3435974400
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3435958016
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4240982512
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2290414576
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1095040768
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1157623808
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4293160704
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9227195
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16567500
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16305356
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 253005007
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255805576
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16729108
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1048388
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16731903
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3438043712
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3712762688
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3723490304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4008112128
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1325334528
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 69652172
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 70567133
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 5242589
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1011438
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65508
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 36 then
+		--Surf sit side
+		SpriteTempVar0 = ActualAddress 
+ 		SpriteTempVar1 = 2290089984
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3150446592
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149692928
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3149498368
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 559240
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9223099
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9157563
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 147569595
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3150547440
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3435842032
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3435964912
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3433737984
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2290499584
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1060323328
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 606339072
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 859832320
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 147635131
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 147639500
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 260885708
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256412876
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256133256
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16003651
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 995891
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16663619
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1156579328
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4244631552
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2406444800
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4160515840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4143378432
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 268369920
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 266201316
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256764159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 266637158
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16711526
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1048371
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 136
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
 		SpriteTempVar0 = SpriteTempVar0 + 4 
  		SpriteTempVar1 = 0
@@ -12223,10 +14874,4464 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
  		SpriteTempVar1 = 0
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
 			--End of block
+		elseif SpriteID == 28 then
+		--Surf down idle Cycle 1
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1727987712
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003201792
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199599
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65382
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16148087
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258369399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906295
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 15
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718265455
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1722459897
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1722808576
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4285071360
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4134184550
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2674567782
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 10484326
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 38655
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 29 then
+		--Surf up idle Cycle 1
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2013200384
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004250368
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199599
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986927
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16148343
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258369399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 15
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986927
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717987065
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718615952
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2583064320
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9857280
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 626688
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2674288230
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 167769702
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16150425
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9857280
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 626688
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+			--End of block
+		elseif SpriteID == 30 then
+		--Surf side idle Cycle 1
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4293918720
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718025984
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1046118
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415919104
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415919104
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199728
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199590
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717987942
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718004399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718004399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 267806311
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986919
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2559
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3942
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717988089
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718024592
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4294545408
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2566914048
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4284900966
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577360486
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 630783
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 153
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 40806
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 153
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+			--End of block
+		elseif SpriteID == 31 then
+		--Surf down idle Cycle 2
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415919104
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4186963968
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1727987712
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003201792
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199599
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65382
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16148087
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258369399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906295
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 9
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2463
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576351232
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2566914048
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718265593
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1722460569
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1869191424
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2674566758
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577050214
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 10065654
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2457
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 153
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 32 then
+		--Surf up idle Cycle 2
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4186963968
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4278190080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2013200384
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004250368
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199599
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986927
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16148343
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258369399
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2463
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576351232
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2566914048
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986927
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717987065
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4194303897
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576771472
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 10066176
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2674288230
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2583691167
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 160852377
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 10066176
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2457
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 153
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 33 then
+		--Surf side idle Cycle 2
+		--Skip 2 tiles, aka put in 3rd and 4th tiles to fit sit char
+		SpriteTempVar0 = ActualAddress + 512
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4293918720
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4026531840
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4177526784
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2566914048
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718025984
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199728
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2004248175
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2003199590
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717987942
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718004390
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1046118
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 267806311
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906039
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986919
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986918
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4095
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 40959
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2463
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 159
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2415919104
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718004393
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1718024601
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1869191568
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576941056
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4133906022
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1777755750
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2426011503
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 629145
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 40806
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 39270
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2457
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 34 then
+		--Surf sit down
+		SpriteTempVar0 = ActualAddress 
+ 		SpriteTempVar1 = 1717960704
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577031168
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576965632
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576983552
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 26214
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 436633
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 432537
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 6986137
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3113920864
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2896996704
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3435835376
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577035072
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717847280
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 790843376
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 607384816
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 860878064
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 110799259
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 110807754
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 258649292
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 83274137
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256132710
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 267662066
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256848706
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256898099
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4293869360
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3981899328
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3865887552
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4205367040
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4205375488
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 267386880
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 15987967
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 74409302
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 71091822
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16550575
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1018543
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 35 then
+		--Surf sit up
+		SpriteTempVar0 = ActualAddress 
+ 		SpriteTempVar1 = 1717960704
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577031168
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576965632
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576983552
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 26214
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 436633
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 432537
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 6986137
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577049952
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2863442272
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3435832896
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2863293680
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717653488
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 286343664
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 286543616
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 289689344
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 110799257
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 110807722
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 74099916
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256289450
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 267654758
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 252973329
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16007441
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16008209
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1145372416
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1145369584
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4283417584
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1726930688
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3439259392
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4279234560
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16729156
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255804484
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255653119
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16764006
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65484
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 255
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
+		elseif SpriteID == 36 then
+		--Surf sit side
+		SpriteTempVar0 = ActualAddress 
+ 		SpriteTempVar1 = 1717960704
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577031168
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576965632
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2576983552
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 26214
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 436633
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 432537
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16423321
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2577049952
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2863442272
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3435833696
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2863310336
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1717986304
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1140012032
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1111638016
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4080271360
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 262842777
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 262851242
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4110068940
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4282821290
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4047791718
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256132164
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256119169
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256132340
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4134404096
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1744826368
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1869590272
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2186063616
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2202726400
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 268369920
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 256132340
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16008271
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1046770
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1044274
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 63539
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 68
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+			--End of block
 		end
 	end
 end
 
+function GetPokemonTeam()
+	local PokemonTeamAddress = 0
+	local PokemonTeamADRTEMP = 0
+	local ReadTemp = ""
+		if GameID == "BPRE" then
+			--Addresses for Firered
+			PokemonTeamAddress = 33702532
+		elseif GameID == "BPGE" then
+			--Addresses for Leafgreen
+			PokemonTeamAddress = 33702532
+		end
+		PokemonTeamADRTEMP = PokemonTeamAddress
+		for j = 1, 6 do
+			for i = 1, 25 do
+				ReadTemp = emu:read32(PokemonTeamADRTEMP) 
+				PokemonTeamADRTEMP = PokemonTeamADRTEMP + 4 
+				ReadTemp = tonumber(ReadTemp)
+				ReadTemp = ReadTemp + 1000000000
+				if i == 1 then Pokemon[j] = ReadTemp
+				else Pokemon[j] = Pokemon[j] .. ReadTemp
+				end
+			end
+		end
+	--	console:createBuffer("EnemyPokemon 1 data: " .. Pokemon[2])
+end
+function SetEnemyPokemonTeam(EnemyPokemonNo, EnemyPokemonPos)
+	local PokemonTeamAddress = 0
+	local PokemonTeamADRTEMP = 0
+	local ReadTemp = ""
+	local String1 = 0
+	local String2 = 0
+		if GameID == "BPRE" then
+			--Addresses for Firered
+			PokemonTeamAddress = 33701932
+		elseif GameID == "BPGE" then
+			--Addresses for Leafgreen
+			PokemonTeamAddress = 33701932
+		end
+		PokemonTeamADRTEMP = PokemonTeamAddress
+		if EnemyPokemonNo == 0 then
+			for j = 1, 6 do
+				for i = 1, 25 do
+					if i == 1 then String1 = i
+					else String1 = String1 + 10
+					end
+					String2 = String1 + 9
+					ReadTemp = string.sub(EnemyPokemon[j],String1,String2)
+					ReadTemp = tonumber(ReadTemp)
+					ReadTemp = ReadTemp - 1000000000
+					emu:write32(PokemonTeamADRTEMP, ReadTemp)
+					PokemonTeamADRTEMP = PokemonTeamADRTEMP + 4
+				end
+			end
+		else
+			PokemonTeamADRTEMP = PokemonTeamADRTEMP + ((EnemyPokemonPos - 1) * 100)
+			for i = 1, 25 do
+				if i == 1 then String1 = i
+				else String1 = String1 + 10
+				end
+				String2 = String1 + 9
+				ReadTemp = string.sub(EnemyPokemon[EnemyPokemonNo],String1,String2)
+				ReadTemp = tonumber(ReadTemp)
+				ReadTemp = ReadTemp - 1000000000
+				emu:write32(PokemonTeamADRTEMP, ReadTemp)
+				PokemonTeamADRTEMP = PokemonTeamADRTEMP + 4
+			end
+		end
+end
+
+function FixAddress()
+	local MultichoiceAdr = 0
+		if GameID == "BPRE" then
+			MultichoiceAdr = 138282176
+		elseif GameID == "BPGE" then
+			MultichoiceAdr = 138282176
+		end
+	if PrevExtraAdr ~= 0 then
+		emu:write32(MultichoiceAdr, PrevExtraAdr)
+	end
+end
+
+function Loadscript(ScriptNo)
+	local ScriptAddressTemp = 0
+	local ScriptAddressTemp1 = 0
+	--2 is where the script itself is, whereas 1 is the memory to force it to read that. 3 is an extra address to use alongside it, such as multi-choice
+	local u32 ScriptAddress2 = 145227776
+	
+	local u32 ScriptAddress3 = 145227712
+	
+	local MultichoiceAdr2 = ScriptAddress3 - 32
+	local TextToNum = 0
+	local NickNameNum
+	local Buffer = {0,0,0,0}
+	local MultichoiceAdr = 0
+		if GameID == "BPRE" then
+			MultichoiceAdr = 138282176
+		elseif GameID == "BPGE" then
+			MultichoiceAdr = 138282176
+		end
+	
+			--Convert 4-byte buffer to readable bytes in case its needed
+				TextToNum = 0
+				for i = 1, 4 do
+					NickNameNum = string.sub(Player2ID,i,i)
+					NickNameNum = string.byte(NickNameNum)
+					NickNameNum = tonumber(NickNameNum)
+					if NickNameNum > 64 and NickNameNum < 93 then
+						NickNameNum = NickNameNum + 122
+					
+					elseif NickNameNum > 92 and NickNameNum < 128 then
+						NickNameNum = NickNameNum + 116
+					else
+						NickNameNum = NickNameNum + 113
+					end
+					Buffer[i] = NickNameNum
+					if Buffer[i] == "" or Buffer[i] == nil then Buffer[i] = "A" end
+				end
+			
+			if ScriptNo == 0 then
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 4294902380
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+		--		LoadScriptIntoMemory()
+			--Host script
+			elseif ScriptNo == 1 then 
+				emu:write16(Var8000Adr[2], 0) 
+				emu:write16(Var8000Adr[5], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 603983722
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2148344069
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 17170433
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 145227804
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 25166870
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4278348800
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 41944086
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4278348800
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3773424593
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3823960280
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3722445033
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3892369887
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3805872355
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655390933
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3638412030
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3034710233
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3654929664
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 16755935
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+		--Interaction Menu	Multi Choice
+			elseif ScriptNo == 2 then
+				emu:write16(Var8000Adr[1], 0) 
+				emu:write16(Var8000Adr[2], 0) 
+				emu:write16(Var8000Adr[14], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 1664873
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 1868957864
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 132117
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 226492441
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147489664
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40566785
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3588018687
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3823829224
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14213353
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 15328237
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655327200
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14936318
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3942704088
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14477533
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289463293
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967040
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				--For buffer 2
+				ScriptAddressTemp = 33692912
+				ScriptAddressTemp1 = Buffer[1]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 1
+				ScriptAddressTemp1 = Buffer[2]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 2
+				ScriptAddressTemp1 = Buffer[3]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 3
+				ScriptAddressTemp1 = Buffer[4]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 4
+				ScriptAddressTemp1 = 255
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				--First save multichoice in case it's needed later
+				PrevExtraAdr = ROMCARD:read32(MultichoiceAdr)
+				--Overwrite multichoice 0x2 with a custom at address MultichoiceAdr2
+				ScriptAddressTemp = MultichoiceAdr
+				ScriptAddressTemp1 = MultichoiceAdr2
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				--Multi-Choice
+				ScriptAddressTemp = MultichoiceAdr2
+				ScriptAddressTemp1 = ScriptAddress3
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 0
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = ScriptAddress3 + 7
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 0
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = ScriptAddress3 + 13
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 0
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = ScriptAddress3 + 18
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 0
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				--Text
+				ScriptAddressTemp = ScriptAddress3
+				ScriptAddressTemp1 = 3907573180
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 3472873952
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 3654866406
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 3872767487
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 3972005848
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				ScriptAddressTemp1 = 4294961373
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+		--Placeholder
+			elseif ScriptNo == 3 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3907242239
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3689078236
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3839220736
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655522788
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 16756952
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967295
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+		--Waiting message
+			elseif ScriptNo == 4 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 1271658
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 375785640
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 5210113
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 654415909
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3523150444
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3723025877
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3657489378
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3808487139
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3873037544
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3588285440
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2967919085
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294902015
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+		--Cancel message
+			elseif ScriptNo == 5 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632325
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655126783
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3706249984
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3825264345
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3656242656
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587965158
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587637479
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3772372962
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289583321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)  
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967040
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+		--Trade request
+			elseif ScriptNo == 6 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 469765994
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2148344069
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 393217
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 145227850
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 41943318
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4278348800
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3942646781
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655133149
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3823632615
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3588679680
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3942701528
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)  
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14477533
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2917786605
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14925566
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 15328237
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3654801365
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289521892
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 18284288
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 1811939712
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967042
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+				--For buffer 2
+				ScriptAddressTemp = 33692912
+				ScriptAddressTemp1 = Buffer[1]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 1
+				ScriptAddressTemp1 = Buffer[2]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 2
+				ScriptAddressTemp1 = Buffer[3]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 3
+				ScriptAddressTemp1 = Buffer[4]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 4
+				ScriptAddressTemp1 = 255
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+		--Trade request denied
+			elseif ScriptNo == 7 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655126783
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3706249984
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3825264345
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3656242656
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3822584038
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3808356313
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3942705379
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14477277
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)  
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3892372456
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3654866406
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4278255533
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+		--Trade offer
+			elseif ScriptNo == 8 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 469765994
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2148344069
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 393217
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 145227866
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 41943318
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4278348800
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 15328211
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3656046044
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3671778048
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3638159065
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2902719744
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)  
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655126782
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587965165
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3808483818
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3873037018
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4244691161
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3522931970
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14737629
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 15328237
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3654801365
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289521892
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 18284288
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 1811939712
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967042
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+		--Trade offer denied
+			elseif ScriptNo == 9 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655126783
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3588679680
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3691043288
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3590383573
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14866905
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3772242392
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3638158045
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4278255533
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+		--Battle request
+			elseif ScriptNo == 10 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 469765994
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2148344069
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 393217
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 145227846
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 41943318
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4278348800
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3942646781
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655133149
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3823632615
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3906328064
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14278888
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2917786605
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14925566
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 15328237
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3654801365
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289521892
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 18284288
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 1811939712
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967042
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+				--For buffer 2
+				ScriptAddressTemp = 33692912
+				ScriptAddressTemp1 = Buffer[1]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 1
+				ScriptAddressTemp1 = Buffer[2]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 2
+				ScriptAddressTemp1 = Buffer[3]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 3
+				ScriptAddressTemp1 = Buffer[4]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = 33692912 + 4
+				ScriptAddressTemp1 = 255
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+		--Battle request denied
+			elseif ScriptNo == 11 then
+				emu:write16(Var8000Adr[2], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655126783
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3706249984
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3825264345
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3656242656
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3822584038
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3808356313
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3942705379
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14477277
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3590382568
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3773360341
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 16756185
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967295
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+		--Select Pokemon for trade
+			elseif ScriptNo == 12 then
+				emu:write16(Var8000Adr[1], 0) 
+				emu:write16(Var8000Adr[2], 0) 
+				emu:write16(Var8000Adr[4], 0) 
+				emu:write16(Var8000Adr[5], 0) 
+				emu:write16(Var8000Adr[14], 0) 
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 10429802
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147754279
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 67502086
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 145227809
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 1199571750
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 50429185
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554944
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632322
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147555071
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967295
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+		--Battle will start
+			elseif ScriptNo == 13 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 1416042
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 627443880
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 1009254542
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554816
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632322
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3924022271
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587571942
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655395560
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3772640000
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3823239392
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3654680811
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2917326299
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294902015
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+		--Trade will start
+			elseif ScriptNo == 14 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 1416042
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 627443880
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 1009254542
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554816
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632322
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3924022271
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3873964262
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14276821
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3772833259
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3957580288
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3688486400
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289585885
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967040
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				LoadScriptIntoMemory()
+		--You have canceled the battle
+			elseif ScriptNo == 15 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632326
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3924022271
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3939884032
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587637465
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3772372962
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14211552
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14277864
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3907573206
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289583584
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967040
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+		--You have canceled the trade
+			elseif ScriptNo == 16 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632326
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3924022271
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3939884032
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587637465
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3772372962
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14211552
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14277864
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3637896936
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 16756185
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967295
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+			--Trading. Your pokemon is stored in 8004, whereas enemy pokemon is already stored through setenemypokemon command
+			elseif ScriptNo == 17 then
+				emu:write16(Var8000Adr[2], 0)
+				emu:write16(Var8000Adr[6], Var8000[5])
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 16655722
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554855
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967295
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+			--Cancel Battle
+			elseif ScriptNo == 18 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632325
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655126783
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3706249984
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3825264345
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3656242656
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587965158
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587637479
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3772372962
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4275624416
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14277864
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3907573206
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289583584
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967040
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+			--Cancel Trading
+			elseif ScriptNo == 19 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632325
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655126783
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3706249984
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3825264345
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3656242656
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587965158
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3587637479
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3772372962
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4275624416
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14277864
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3637896936
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 16756185
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967295
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+			--other player is too busy to battle.
+			elseif ScriptNo == 20 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3722235647
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3873964263
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655523797
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655794918
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 15196633
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4276347880
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3991398870
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14936064
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3907573206
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4289780192
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967040
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+			--other player is too busy to trade.
+			elseif ScriptNo == 21 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 285216618
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 151562240
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 2147554822
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 40632321
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3722235647
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3873964263
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655523797
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3655794918
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 15196633
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4276347880
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3991398870
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 14936064
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 3637896936
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 16756953
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 4294967295
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+			--battle script
+			elseif ScriptNo == 22 then
+				emu:write16(Var8000Adr[2], 0)
+				ScriptAddressTemp = ScriptAddress2
+				ScriptAddressTemp1 = 40656234
+				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				LoadScriptIntoMemory()
+			end
+			
+end
+
+function ApplyMovement(MovementType)
+	local u32 ScriptAddress = 50335400
+	local u32 ScriptAddress2 = 145227776
+	local ScriptAddressTemp = 0
+	local ScriptAddressTemp1 = 0
+	ScriptAddressTemp = ScriptAddress2
+	ScriptAddressTemp1 = 16732010
+	ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+	ScriptAddressTemp = ScriptAddressTemp + 4
+	ScriptAddressTemp1 = 145227790
+	ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+	ScriptAddressTemp = ScriptAddressTemp + 4
+	ScriptAddressTemp1 = 1811939409
+	ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1)
+	ScriptAddressTemp = ScriptAddressTemp + 4
+	ScriptAddressTemp1 = 65282
+	ROMCARD:write16(ScriptAddressTemp, ScriptAddressTemp1)
+	if MovementType == 0 then
+		ScriptAddressTemp = ScriptAddressTemp + 2
+		ScriptAddressTemp1 = 65024
+		ROMCARD:write16(ScriptAddressTemp, ScriptAddressTemp1)
+		LoadScriptIntoMemory()
+	elseif MovementType == 1 then
+		ScriptAddressTemp = ScriptAddressTemp + 2
+		ScriptAddressTemp1 = 65025
+		ROMCARD:write16(ScriptAddressTemp, ScriptAddressTemp1)
+		LoadScriptIntoMemory()
+	elseif MovementType == 2 then
+		ScriptAddressTemp = ScriptAddressTemp + 2
+		ScriptAddressTemp1 = 65026
+		ROMCARD:write16(ScriptAddressTemp, ScriptAddressTemp1)
+		LoadScriptIntoMemory()
+	elseif MovementType == 3 then
+		ScriptAddressTemp = ScriptAddressTemp + 2
+		ScriptAddressTemp1 = 65027
+		ROMCARD:write16(ScriptAddressTemp, ScriptAddressTemp1)
+		LoadScriptIntoMemory()
+	end
+end
+
+function LoadScriptIntoMemory()
+--This puts the script at ScriptAddress into the memory, forcing it to load
+
+	local u32 ScriptAddress = 50335400
+	local u32 ScriptAddress2 = 145227776
+	local ScriptAddressTemp = 0
+	local ScriptAddressTemp1 = 0
+				ScriptAddressTemp = ScriptAddress
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				--Either use 66048, 512, or 513.
+				ScriptAddressTemp1 = 513
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4
+				--134654353 and 145293312 freezes the game
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = ScriptAddress2 + 1
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1) 
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = ScriptAddressTemp + 4 
+				ScriptAddressTemp1 = 0
+				emu:write32(ScriptAddressTemp, ScriptAddressTemp1)
+				--END Block
+end
+
+function SendMultiplayerPackets(Offset, size, Socket)
+	local Packet = ""
+	local ModifiedSize = 0
+	local ModifiedLoop = 0
+	local ModifiedLoop2 = 0
+	local PacketAmount = 0
+	--Using RAM 0263DE00 for packets, as it seems free. If not, will modify later
+	if Offset == 0 then Offset = 40099328 end
+	local ModifiedRead = ""
+	if size > 0 then
+		CreatePackettSpecial("SLNK",Player2,size)
+		for i = 1, size do
+			--Inverse of i, size remaining. 1 = last. Also size represents hex bytes, which goes up to 255 in decimal, so we triple it.
+			ModifiedSize = size - i + 1
+			if ModifiedSize > 20 and ModifiedLoop == 0 then
+				PacketAmount = PacketAmount + 1
+				ModifiedLoop = 20
+				ModifiedLoop2 = 0
+			--	console:createBuffer("Packet number: " .. PacketAmount)
+			elseif ModifiedSize <= 20 and ModifiedLoop == 0 then
+				PacketAmount = PacketAmount + 1
+				ModifiedLoop = ModifiedSize
+				ModifiedLoop2 = 0
+			--	console:createBuffer("Last packet. Number: " .. PacketAmount)
+			end
+			if ModifiedLoop ~= 0 then
+				ModifiedLoop2 = ModifiedLoop2 + 1
+				ModifiedRead = emu:read8(Offset)
+				ModifiedRead = tonumber(ModifiedRead)
+				ModifiedRead = ModifiedRead + 100
+				if Packet == "" then Packet = ModifiedRead
+				else Packet = Packet .. ModifiedRead
+				end
+				if ModifiedLoop == 1 then
+					Socket:send(Packet)
+			--		console:createBuffer("Packet sent! Packet " .. Packet .. " end. Amount of loops: " .. ModifiedLoop2 .. " " .. Offset)
+					Packet = ""
+					ModifiedLoop = 0
+				else
+					ModifiedLoop = ModifiedLoop - 1
+				end
+			end
+			Offset = Offset + 1
+		end
+	end
+end
+
+function ReceiveMultiplayerPackets(size, Socket)
+	local Packet = ""
+	local ModifiedSize = 0
+	local ModifiedLoop = 0
+	local ModifiedLoop2 = 0
+	local PacketAmount = 0
+	local ModifiedRead
+	local ModifiedLoop3 = 0
+	local SizeMod = 0
+	--Using RAM 0263D000-0263DDFF for received data, as it seems free. If not, will modify later
+	local MultiplayerPacketSpace = 40095744
+	--console:createBuffer("TEST 1")
+	for i = 1, size do
+		--Inverse of i, size remaining. 1 = last. Also size represents hex bytes, which goes up to 255 in decimal
+		ModifiedSize = size - i + 1
+		if ModifiedSize > 20 and ModifiedLoop == 0 then
+			PacketAmount = PacketAmount + 1
+			Packet = Socket:receive(60)
+			ModifiedLoop = 20
+			ModifiedLoop2 = 0
+	--		console:createBuffer("Packet number: " .. PacketAmount)
+		elseif ModifiedSize <= 20 and ModifiedLoop == 0 then
+			PacketAmount = PacketAmount + 1
+			SizeMod = ModifiedSize * 3
+			Packet = Socket:receive(SizeMod)
+			ModifiedLoop = ModifiedSize
+			ModifiedLoop2 = 0
+	--		console:createBuffer("Last packet. Number: " .. PacketAmount)
+		end
+		if ModifiedLoop ~= 0 then
+			ModifiedLoop3 = ModifiedLoop2 * 3 + 1
+			ModifiedLoop2 = ModifiedLoop2 + 1
+			SizeMod = ModifiedLoop3 + 2
+			ModifiedRead = string.sub(Packet, ModifiedLoop3, SizeMod)
+			ModifiedRead = tonumber(ModifiedRead)
+			ModifiedRead = ModifiedRead - 100
+			emu:write8(MultiplayerPacketSpace, ModifiedRead)
+	--		console:createBuffer("Num: " .. ModifiedRead)
+	--		console:createBuffer("NUM: " .. ModifiedRead)
+			if ModifiedLoop == 1 then
+		--		console:createBuffer("Packet " .. PacketAmount .. " end. Amount of loops: " .. ModifiedLoop2 .. " " .. MultiplayerPacketSpace)
+				Packet = ""
+				ModifiedLoop = 0
+			else
+				ModifiedLoop = ModifiedLoop - 1
+			end
+		end
+		MultiplayerPacketSpace = MultiplayerPacketSpace + 1
+	end
+end
+
+function Battlescript()
+
+
+end
+
+function BattlescriptClassic()
+	--Cursor
+	
+	BattleVars[2] = emu:read8(33701880)
+	--Battle finished. 1 = yes, 0 = is still ongoing
+	BattleVars[3] = emu:read8(33701514)
+	--Phase. 4 = finished moves.
+	BattleVars[4] = emu:read8(33701506)
+	--Speed. 256 = You move first. 1 = You move last
+	BattleVars[5] = emu:read16(33700830)
+	if BattleVars[5] > 10 then BattleVars[5] = 1
+	else BattleVars[5] = 0
+	end
+		
+	--Initialize battle
+	if BattleVars[1] == 0 then
+		BattleVars[1] = 1
+		BattleVars[11] = 1
+		
+		Loadscript(22)
+		--Trainerbattleoutro
+		local Buffer1 = 33785528
+		local Buffer2 = 145227780
+		--Outro for battle. "Thanks for the great battle."
+		local Bufferloc = "1145227780"
+		local Bufferstring = "48056665104657492447489237321946742660764906329062490632806439167372565294967295"
+	
+		--514 = Player red ID, 515 = Leaf aka female
+		emu:write16(33785518, 514)
+		--Cursor. Set to 0
+		emu:write8(33701880, 0)
+		--Set win to 0
+		emu:write8(33701514, 0)
+		--Set speeds to 0
+		emu:write16(33700830, 0)
+		--Set turn to 0
+		emu:write8(33700834, 0)
+				
+		WriteBuffers(Buffer1, Bufferloc, 1)
+		WriteRom(Buffer2, Bufferstring, 8)
+		
+	--Wait 150 frames for other vars to load
+	elseif BattleVars[1] == 1 and BattleVars[11] < 150 then
+		BattleVars[11] = BattleVars[11] + 1
+			--514 = Player red ID, 515 = Leaf aka female
+			emu:write16(33785518, 514)
+			--Cursor. Set to 0
+			emu:write8(33701880, 0)
+			--Set win to 0
+			emu:write8(33701514, 0)
+			--Set speeds to 0
+			emu:write16(33700830, 0)
+			--Set turn to 0
+			emu:write8(33700834, 0)
+			if BattleVars[11] >= 150 then
+				--Set enemy team
+				SetEnemyPokemonTeam(0,1)
+				BattleVars[1] = 2
+			end
+		
+	--Battle loop
+	elseif BattleVars[1] == 2 then
+		BattleVars[12] = emu:read8(33700808)
+		BufferVars[20] = ""
+		
+		--If both players have not gone
+		if BattleVars[6] == 0 then
+			--You have not decided on a move
+			if BattleVars[4] >= 1 and EnemyBattleVars[4] ~= 4 then
+				--Pause until other player has made a move
+				if BattleVars[12] < 32 then
+					BattleVars[12] = BattleVars[12] + 32
+					emu:write8(33700808, BattleVars[12])
+				end
+			elseif BattleVars[4] >= 4 and EnemyBattleVars[4] >= 4 then
+				if MasterClient == "h" then
+					if BattleVars[5] == 1 then
+						BattleVars[6] = 1
+					else
+						BattleVars[6] = 2
+					end
+				else
+					if EnemyBattleVars[5] == 1 then
+						BattleVars[6] = 2
+					else
+						BattleVars[6] = 1
+					end
+				end
+			end
+		--You go first
+		elseif BattleVars[6] == 1 then
+			local TurnTime = emu:read8(33700834)
+			--Write speed to 256
+			emu:write16(33700830, 256)
+			if BattleVars[7] == 0 then
+				BattleVars[7] = 1
+			--	BattleVars[13] = ReadBuffers()
+			--	console:createBuffer("First")
+			-- SEND DATA
+				CreatePackettSpecial("BAT2", Player2)
+				
+			--Animate
+			elseif BattleVars[7] == 1 and EnemyBattleVars[7] == 1 and TurnTime == 0 then
+				if BattleVars[12] >= 32 then
+					BattleVars[12] = BattleVars[12] - 32
+					emu:write8(33700808, BattleVars[12])
+				end
+				
+			--Other player's turn. Pause.
+			elseif BattleVars[7] == 1 and TurnTime == 1 then
+				if BattleVars[12] < 32 then
+					BattleVars[12] = BattleVars[12] + 32
+					emu:write8(33700808, BattleVars[12])
+				end
+				BattleVars[7] = 2
+			--Once received then set 7 to 3.
+			elseif BattleVars[7] == 2 and string.len(BattleVars[20]) == 280 and string.len(BattleVars[21]) == 244 then
+				BattleVars[7] = 3
+			--Animate
+			elseif BattleVars[7] == 3 and EnemyBattleVars[7] == 3 then
+				if BattleVars[12] >= 32 then
+					BattleVars[12] = BattleVars[12] - 32
+					emu:write8(33700808, BattleVars[12])
+				end
+				BattleVars[7] = 4
+			--Lock after animations while waiting for other player
+			elseif BattleVars[7] == 4 and TurnTime == 2 then
+				if BattleVars[12] < 32 then
+					BattleVars[12] = BattleVars[12] + 32
+					emu:write8(33700808, BattleVars[12])
+				end
+			--Unlock if both players finish animations
+			elseif BattleVars[7] == 4 and TurnTime == 2 then
+				if BattleVars[12] < 32 then
+					BattleVars[12] = BattleVars[12] + 32
+					emu:write8(33700808, BattleVars[12])
+				end
+				BattleVars[7] = 4
+			end
+		--You go second
+		elseif BattleVars[6] == 2 then
+		local TurnTime = emu:read8(33700834)
+			--Write speed to 1
+			emu:write16(33700830, 1)
+			if BattleVars[7] == 0 and string.len(BattleVars[20]) == 280 and string.len(BattleVars[21]) == 244 then
+				BattleVars[7] = 1
+			--	BattleVars[13] = ReadBuffers()
+			-- RECEIVEDATA
+			--	console:createBuffer("Second")
+			elseif BattleVars[7] == 1 and EnemyBattleVars[7] == 1 then
+				if BattleVars[12] >= 32 then
+					BattleVars[12] = BattleVars[12] - 32
+					emu:write8(33700808, BattleVars[12])
+				end
+			end
+		end
+	end
+	
+	--Prevent item use
+	if BattleVars[1] >= 2 and BattleVars[2] == 1 then emu:write8(33696589, 1)
+	else emu:write8(33696589, 0)
+	end
+	
+	--Unlock once battle ends
+	if BattleVars[1] >= 2 and BattleVars[3] == 1 then LockFromScript = 0 end
+	
+	
+	if SendTimer == 0 then CreatePackettSpecial("BATT", Player2) end
+end
+
+function WriteBuffers(BufferOffset, BufferVar, Length)
+	local BufferOffset2 = BufferOffset
+	local BufferVarSeperate
+	local String1 = 0
+	local String2 = 0
+	for i = 1, Length do
+		if i == 1 then String1 = 1
+		else String1 = String1 + 10
+		end
+		String2 = String1 + 9
+		BufferVarSeperate = string.sub(BufferVar, String1, String2)
+		BufferVarSeperate = tonumber(BufferVarSeperate)
+		BufferVarSeperate = BufferVarSeperate - 1000000000
+		emu:write32(BufferOffset2, BufferVarSeperate)
+		BufferOffset2 = BufferOffset2 + 4
+	end
+end
+function WriteRom(RomOffset, RomVar, Length)
+	local RomOffset2 = RomOffset
+	local RomVarSeperate
+	local String1 = 0
+	local String2 = 0
+	for i = 1, Length do
+		if i == 1 then String1 = 1
+		else String1 = String1 + 10
+		end
+		String2 = String1 + 9
+		RomVarSeperate = string.sub(RomVar, String1, String2)
+		RomVarSeperate = tonumber(RomVarSeperate)
+		RomVarSeperate = RomVarSeperate - 1000000000
+		ROMCARD:write32(RomOffset2, RomVarSeperate)
+		RomOffset2 = RomOffset2 + 4
+	end
+end
+function ReadBuffers(BufferOffset, Length)
+	local BufferOffset2 = BufferOffset
+	local BufferVar
+	local BufferVarSeperate
+	for i = 1, Length do
+		BufferVarSeperate = emu:read32(BufferOffset2)
+		BufferVarSeperate = tonumber(BufferVarSeperate)
+		BufferVarSeperate = BufferVarSeperate + 1000000000
+		if i == 1 then BufferVar = BufferVarSeperate
+		else BufferVar = BufferVar .. BufferVarSeperate
+		end
+		BufferOffset2 = BufferOffset2 + 4
+	end
+	return BufferVar
+end
+function Tradescript()
+	--Buffer 1 is enemy pokemon, 2 is our pokemon
+	local Buffer1 = 33692880
+	local Buffer2 = 33692912
+
+
+--	if TempVar2 == 0 then console:createBuffer("1: " .. TradeVars[1] .. " 8001: " .. Var8000[2] .. " OtherPlayerHasCancelled: " .. OtherPlayerHasCancelled .. " EnemyTradeVars[1]: " .. EnemyTradeVars[1]) end
+
+	--Text is finished before trade
+	if Var8000[2] ~= 0 and TradeVars[1] == 0 then
+		TradeVars[1] = 1
+		Loadscript(12)
+	
+	--You have canceled or have not selected a valid pokemon slot
+	elseif Var8000[2] == 1 and TradeVars[1] == 1 then
+		Loadscript(16)
+		SendData("CTRA",Player2)
+		LockFromScript = 0
+		TradeVars[1] = 0
+		TradeVars[2] = 0
+		TradeVars[3] = 0
+	--The other player has canceled
+	elseif Var8000[2] == 2 and TradeVars[1] == 1 and OtherPlayerHasCancelled ~= 0 then
+		OtherPlayerHasCancelled = 0
+		Loadscript(19)
+		LockFromScript = 7
+		TradeVars[1] = 0
+		TradeVars[2] = 0
+		TradeVars[3] = 0
+	
+	--You have finished your selection
+	elseif Var8000[2] == 2 and TradeVars[1] == 1 and OtherPlayerHasCancelled == 0 then
+		--You just finished. Display waiting
+		TradeVars[3] = Var8000[5]
+		TradeVars[5] = ReadBuffers(Buffer2, 4)
+	--	TradeVars[6] = TradeVars[5] .. 5294967295
+	--	WriteBuffers(Buffer1, TradeVars[6], 5)
+		if EnemyTradeVars[1] == 2 then
+			EnemyTradeVars[6] = EnemyTradeVars[5] .. 5294967295
+			WriteBuffers(Buffer1, EnemyTradeVars[6], 5)
+			TradeVars[1] = 3
+			Loadscript(8)
+		else
+			Loadscript(4)
+			TradeVars[1] = 2
+		end
+	elseif TradeVars[1] == 2 then
+		--Wait for other player
+		if Var8000[2] ~= 0 then TradeVars[2] = 1 end
+		--If they cancel
+		if Var8000[2] ~= 0 and OtherPlayerHasCancelled ~= 0 then
+			OtherPlayerHasCancelled = 0
+			Loadscript(19)
+			LockFromScript = 7
+			TradeVars[1] = 0
+			TradeVars[2] = 0
+			TradeVars[3] = 0
+			
+		--If other player has finished selecting
+		elseif Var8000[2] ~= 0 and ((EnemyTradeVars[2] == 1 and EnemyTradeVars[1] == 2) or EnemyTradeVars[1] == 3) then
+			EnemyTradeVars[6] = EnemyTradeVars[5] .. 5294967295
+			WriteBuffers(Buffer1, EnemyTradeVars[6], 5)
+			TradeVars[1] = 3
+			TradeVars[2] = 0
+			Loadscript(8)
+			
+		end
+	elseif TradeVars[1] == 3 then
+		--If you decline
+		if Var8000[2] == 1 then
+			SendData("ROFF", Player2)
+			Loadscript(16)
+			LockFromScript = 7
+			TradeVars[1] = 0
+			TradeVars[2] = 0
+			TradeVars[3] = 0
+			
+		--If you accept and they deny
+		elseif Var8000[2] == 2 and OtherPlayerHasCancelled ~= 0 then
+			OtherPlayerHasCancelled = 0
+			Loadscript(9)
+			LockFromScript = 7
+			TradeVars[1] = 0
+			TradeVars[2] = 0
+			TradeVars[3] = 0
+	
+		--If you accept and there is no denial
+		elseif Var8000[2] == 2 and OtherPlayerHasCancelled == 0 then
+			--If other player isn't finished selecting, wait. Otherwise, go straight into trade.
+			if EnemyTradeVars[1] == 4 then
+				TradeVars[1] = 5
+				local TeamPos = EnemyTradeVars[3] + 1
+				SetEnemyPokemonTeam(TeamPos, 1)
+				Loadscript(17)
+			else
+				Loadscript(4)
+				TradeVars[1] = 4
+			end
+	end
+	elseif TradeVars[1] == 4 then
+		--Wait for other player
+		if Var8000[2] ~= 0 then TradeVars[2] = 1 end
+		--If they cancel
+		if Var8000[2] ~= 0 and OtherPlayerHasCancelled ~= 0 then
+			OtherPlayerHasCancelled = 0
+			Loadscript(19)
+			LockFromScript = 7
+			TradeVars[1] = 0
+			TradeVars[2] = 0
+			TradeVars[3] = 0
+			
+		--If other player has finished selecting
+		elseif Var8000[2] ~= 0 and ((EnemyTradeVars[2] == 1 and EnemyTradeVars[1] == 4) or EnemyTradeVars[1] == 5) then
+			TradeVars[2] = 0
+			TradeVars[1] = 5
+			local TeamPos = EnemyTradeVars[3] + 1
+			SetEnemyPokemonTeam(TeamPos, 1)
+			Loadscript(17)
+		end
+	elseif TradeVars[1] == 5 then
+		--After trade
+		if Var8000[2] ~= 0 then 
+			TradeVars[1] = 0
+			TradeVars[2] = 0
+			TradeVars[3] = 0
+			TradeVars[4] = 0
+			TradeVars[5] = 0
+			EnemyTradeVars[1] = 0
+			EnemyTradeVars[2] = 0
+			EnemyTradeVars[3] = 0
+			EnemyTradeVars[4] = 0
+			EnemyTradeVars[5] = 0
+			LockFromScript = 0
+		end
+	end
+	
+	if SendTimer == 0 then CreatePackettSpecial("TRAD", Player2) end
+end
+		--	if Var8000[2] ~= 0 then
+		--		Loadscript(16)
+		--		SendData("CTRA", Player2)
+		--		LockFromScript = 7
+		--		TradeVars[1] = 0
+		--		TradeVars[2] = 0
+		--		TradeVars[3] = 0
 
 function FixPositionPlayer1()
 	--Fix values
@@ -12696,8 +19801,9 @@ function GetPosition()
 		if MapX > 99 then MapX = 99 end
 		MapY = emu:read16(PlayerYAddress)
 		if MapY > 99 then MapY = 99 end
+	--	if TempVar2 == 0 then console:createBuffer("BIKE: " .. Bike) end
 		--Male Firered Sprite from 1.0, 1.1, and leafgreen
-		if (Bike == 160 or Bike == 272) then
+		if ((Bike == 160 or Bike == 272) or (Bike == 128 or Bike == 240)) then
 			PlayerExtra2 = 0
 			Bike = 0
 		--	if TempVar2 == 0 then console:createBuffer("Male on Foot") end
@@ -12706,6 +19812,10 @@ function GetPosition()
 			PlayerExtra2 = 0
 			Bike = 1
 		--	if TempVar2 == 0 then console:createBuffer("Male on Bike") end
+		--Male Firered Surfing Sprite
+		elseif (Bike == 624 or Bike == 736 or Bike == 592 or Bike == 704) then
+			PlayerExtra2 = 0
+			Bike = 2
 		--Female sprite
 		elseif ((Bike == 392 or Bike == 504) or (Bike == 360 or Bike == 472)) then
 			PlayerExtra2 = 1
@@ -12715,13 +19825,37 @@ function GetPosition()
 		elseif ((Bike == 552 or Bike == 664) or (Bike == 520 or Bike == 632)) then
 			PlayerExtra2 = 1
 			Bike = 1
-		--	if TempVar2 == 0 then console:createBuffer("Female on Bike") end
+		--Female Firered Surfing Sprite
+		elseif (Bike == 720 or Bike == 832 or Bike == 688 or Bike == 800) then
+			PlayerExtra2 = 1
+			Bike = 2
 		else
 		--If in bag when connecting will automatically be firered male
 		--	if TempVar2 == 0 then console:createBuffer("Bag/Unknown") end
 		end
 		Facing = tonumber(PlayerFacing)
-		if Bike == 1 then
+		if Bike == 2 then
+			--Facing
+			if Facing == 0 then PlayerExtra1 = 33 PlayerDirection = 4 end
+			if Facing == 1 then PlayerExtra1 = 34 PlayerDirection = 3 end
+			if Facing == 2 then PlayerExtra1 = 35 PlayerDirection = 1 end
+			if Facing == 3 then PlayerExtra1 = 36 PlayerDirection = 2 end
+			--Surfing
+			if Facing == 29 then PlayerExtra1 = 37 PlayerDirection = 4 end
+			if Facing == 30 then PlayerExtra1 = 38 PlayerDirection = 3 end
+			if Facing == 31 then PlayerExtra1 = 39 PlayerDirection = 1 end
+			if Facing == 32 then PlayerExtra1 = 40 PlayerDirection = 2 end
+			--Turning
+			if Facing == 41 then PlayerExtra1 = 33 PlayerDirection = 4 end
+			if Facing == 42 then PlayerExtra1 = 34 PlayerDirection = 3 end
+			if Facing == 43 then PlayerExtra1 = 35 PlayerDirection = 1 end
+			if Facing == 44 then PlayerExtra1 = 36 PlayerDirection = 2 end
+			--hitting a wall
+			if Facing == 33 then PlayerExtra1 = 33 PlayerDirection = 4 end
+			if Facing == 34 then PlayerExtra1 = 34 PlayerDirection = 3 end
+			if Facing == 35 then PlayerExtra1 = 35 PlayerDirection = 1 end
+			if Facing == 36 then PlayerExtra1 = 36 PlayerDirection = 2 end
+		elseif Bike == 1 then
 			if Facing == 0 then PlayerExtra1 = 17 PlayerDirection = 4 end
 			if Facing == 1 then PlayerExtra1 = 18 PlayerDirection = 3 end
 			if Facing == 2 then PlayerExtra1 = 19 PlayerDirection = 1 end
@@ -12766,7 +19900,7 @@ function GetPosition()
 			if Facing == 62 then PlayerExtra1 = 14 PlayerDirection = 3 end
 			if Facing == 63 then PlayerExtra1 = 15 PlayerDirection = 1 end
 			if Facing == 64 then PlayerExtra1 = 16 PlayerDirection = 2 end
-			if Facing == 255 then PlayerExtra1 = 0 end
+		--	if Facing == 255 then PlayerExtra1 = 0 end
 		end
 		ActualPlayerDirection = PlayerDirection
 	--	if TempVar2 == 0 then console:createBuffer("MapID: " .. MapID .. "PlayerMapID" .. PlayerMapID) end
@@ -12825,25 +19959,60 @@ function GetPosition()
 		if MapY2 > 99 then MapY2 = 99 end
 		Facing2 = tonumber(PlayerFacing)
 		--Male Firered Sprite from 1.0, 1.1, and leafgreen
-		if (Bike == 160 or Bike == 272) then
+		--Male Firered Sprite from 1.0, 1.1, and leafgreen
+		if ((Bike == 160 or Bike == 272) or (Bike == 128 or Bike == 240)) then
 			Player2Extra2 = 0
 			Bike = 0
+		--	if TempVar2 == 0 then console:createBuffer("Male on Foot") end
 		--Male Firered Biking Sprite
 		elseif (Bike == 320 or Bike == 432 or Bike == 288 or Bike == 400) then
 			Player2Extra2 = 0
 			Bike = 1
+		--	if TempVar2 == 0 then console:createBuffer("Male on Bike") end
+		--Male Firered Surfing Sprite
+		elseif (Bike == 624 or Bike == 736 or Bike == 592 or Bike == 704) then
+			Player2Extra2 = 0
+			Bike = 2
 		--Female sprite
 		elseif ((Bike == 392 or Bike == 504) or (Bike == 360 or Bike == 472)) then
 			Player2Extra2 = 1
 			Bike = 0
+		--	if TempVar2 == 0 then console:createBuffer("Female on Foot") end
 		--Female Biking sprite
 		elseif ((Bike == 552 or Bike == 664) or (Bike == 520 or Bike == 632)) then
 			Player2Extra2 = 1
 			Bike = 1
+		--	if TempVar2 == 0 then console:createBuffer("Female on Bike") end
+		--Female Firered Surfing Sprite
+		elseif (Bike == 720 or Bike == 832 or Bike == 688 or Bike == 800) then
+			Player2Extra2 = 1
+			Bike = 2
 		else
 		--If in bag when connecting will automatically be firered male
+		--	if TempVar2 == 0 then console:createBuffer("Bag/Unknown") end
 		end
-		if Bike == 1 then
+		if Bike == 2 then
+			--Facing
+			if Facing2 == 0 then Player2Extra1 = 33 Player2Direction = 4 end
+			if Facing2 == 1 then Player2Extra1 = 34 Player2Direction = 3 end
+			if Facing2 == 2 then Player2Extra1 = 35 Player2Direction = 1 end
+			if Facing2 == 3 then Player2Extra1 = 36 Player2Direction = 2 end
+			--Surfing
+			if Facing2 == 29 then Player2Extra1 = 37 Player2Direction = 4 end
+			if Facing2 == 30 then Player2Extra1 = 38 Player2Direction = 3 end
+			if Facing2 == 31 then Player2Extra1 = 39 Player2Direction = 1 end
+			if Facing2 == 32 then Player2Extra1 = 40 Player2Direction = 2 end
+			--Turning
+			if Facing2 == 41 then Player2Extra1 = 33 Player2Direction = 4 end
+			if Facing2 == 42 then Player2Extra1 = 34 Player2Direction = 3 end
+			if Facing2 == 43 then Player2Extra1 = 35 Player2Direction = 1 end
+			if Facing2 == 44 then Player2Extra1 = 36 Player2Direction = 2 end
+			--hitting a wall
+			if Facing2 == 33 then Player2Extra1 = 33 Player2Direction = 4 end
+			if Facing2 == 34 then Player2Extra1 = 34 Player2Direction = 3 end
+			if Facing2 == 35 then Player2Extra1 = 35 Player2Direction = 1 end
+			if Facing2 == 36 then Player2Extra1 = 36 Player2Direction = 2 end
+		elseif Bike == 1 then
 			if Facing2 == 0 then Player2Extra1 = 17 Player2Direction = 4 end
 			if Facing2 == 1 then Player2Extra1 = 18 Player2Direction = 3 end
 			if Facing2 == 2 then Player2Extra1 = 19 Player2Direction = 1 end
@@ -12888,7 +20057,7 @@ function GetPosition()
 			if Facing2 == 62 then Player2Extra1 = 14 Player2Direction = 3 end
 			if Facing2 == 63 then Player2Extra1 = 15 Player2Direction = 1 end
 			if Facing2 == 64 then Player2Extra1 = 16 Player2Direction = 2 end
-			if Facing2 == 255 then Player2Extra1 = 0 end
+		--	if Facing2 == 255 then Player2Extra1 = 0 end
 		end
 		ActualPlayerDirection = Player2Direction
 	--	if TempVar2 == 0 then console:createBuffer("MapID: " .. MapID .. "PlayerMapID" .. PlayerMapID) end
@@ -12961,6 +20130,7 @@ function NoPlayersIfScreen()
 		end
 end
 
+
 function AnimatePlayerMovement(PlayerNo, AnimateID)
 		--This is for updating the previous coords with new ones, without looking janky
 		--AnimateID List
@@ -13000,6 +20170,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 		local Direction = 0
 		local FacingDir = 0
 		local SpriteNumber = 0
+		local PrevAnim = 0
 		--PLAYERS
 		if PlayerNo == 1 then
 			XMap = MapX
@@ -13015,6 +20186,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			Direction = PlayerDirection
 			FacingDir = Facing
 			SpriteNumber = PlayerExtra2
+			PrevAnim = PlayerPrevAnimation[1]
 		elseif PlayerNo == 2 then
 			XMap = MapX2
 			YMap = MapY2
@@ -13029,6 +20201,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			Direction = Player2Direction
 			FacingDir = Facing2
 			SpriteNumber = Player2Extra2
+			PrevAnim = PlayerPrevAnimation[2]
 		elseif PlayerNo == 3 then
 			XMap = MapX3
 			YMap = MapY3
@@ -13041,6 +20214,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			PlayerAnimationFrame2 = Player3AnimationFrame2
 			PlayerExtra = Player3Extra1
 			SpriteNumber = Player3Extra2
+			PrevAnim = PlayerPrevAnimation[3]
 		elseif PlayerNo == 4 then
 			XMap = MapX4
 			YMap = MapY4
@@ -13053,6 +20227,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			PlayerAnimationFrame2 = Player4AnimationFrame2
 			PlayerExtra = Player4Extra1
 			SpriteNumber = Player4Extra2
+			PrevAnim = PlayerPrevAnimation[4]
 		end
 			AnimatePlayerMoveX = ((NewXMap * 16) - NewMapPosX) - (XMap * 16)
 			AnimatePlayerMoveY = ((NewYMap * 16) - NewMapPosY) - (YMap * 16)
@@ -13061,7 +20236,6 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 	--		if PlayerAnimationFrame > 20 then PlayerAnimationFrame = 0 end
 			--16 is the standard for 1 movement.
 			PlayerAnimationFrame = PlayerAnimationFrame + 1
-			
 			
 		--	if AnimateID ~= 255 then
 		--	createBuffer("Max frame: " .. PlayerAnimationFrameMax .. "Current frame: " .. PlayerAnimationFrame)
@@ -13114,6 +20288,12 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 					else
 						createChars(Charpic,10,SpriteNumber)
 					end
+				--Surf
+				elseif AnimateID == 23 then
+					PlayerAnimationFrameMax = 4
+					NewMapPosX = NewMapPosX - 4
+					createChars(Charpic,30,SpriteNumber)
+					createChars(Charpic,36,SpriteNumber)
 				else
 				
 				end
@@ -13160,6 +20340,12 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 					else
 						createChars(Charpic,10,SpriteNumber)
 					end
+				--Surf
+				elseif AnimateID == 24 then
+					PlayerAnimationFrameMax = 4
+					NewMapPosX = NewMapPosX + 4
+					createChars(Charpic,30,SpriteNumber)
+					createChars(Charpic,36,SpriteNumber)
 				else
 				
 				end
@@ -13179,6 +20365,22 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 						createChars(Charpic,1,SpriteNumber)
 					end
 				--If they are now equal
+				end
+				--Surfing animation
+				if AnimateID == 19 then
+					createChars(Charpic,36,SpriteNumber)
+					if PrevAnim ~= 19 then PlayerAnimationFrame2 = 0 PlayerAnimationFrame = 24 end
+					PlayerAnimationFrameMax = 48
+					if PlayerAnimationFrame2 == 0 then createChars(Charpic,30,SpriteNumber)
+					elseif PlayerAnimationFrame2 == 1 then createChars(Charpic,33,SpriteNumber)
+					end
+				elseif AnimateID == 20 then
+					createChars(Charpic,36,SpriteNumber)
+					if PrevAnim ~= 20 then PlayerAnimationFrame2 = 0 PlayerAnimationFrame = 24 end
+					PlayerAnimationFrameMax = 48
+					if PlayerAnimationFrame2 == 0 then createChars(Charpic,30,SpriteNumber)
+					elseif PlayerAnimationFrame2 == 1 then createChars(Charpic,33,SpriteNumber)
+					end
 				end
 			end
 			
@@ -13223,6 +20425,12 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 					else
 						createChars(Charpic,11,SpriteNumber)
 					end
+				--Surf
+				elseif AnimateID == 22 then
+					PlayerAnimationFrameMax = 4
+					NewMapPosY = NewMapPosY - 4
+					createChars(Charpic,29,SpriteNumber)
+					createChars(Charpic,35,SpriteNumber)
 				end
 					
 			--Animate down movement
@@ -13265,6 +20473,12 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 					else
 						createChars(Charpic,12,SpriteNumber)
 					end
+				--Surf
+				elseif AnimateID == 21 then
+					PlayerAnimationFrameMax = 4
+					NewMapPosY = NewMapPosY + 4
+					createChars(Charpic,28,SpriteNumber)
+					createChars(Charpic,34,SpriteNumber)
 				--If they are now equal
 				end
 			else
@@ -13297,6 +20511,24 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 					end
 				else
 				--		createChars(Charpic,3,SpriteNumber)
+				end
+				
+				--Surfing animation
+				if AnimateID == 17 then
+					createChars(Charpic,34,SpriteNumber)
+					if PrevAnim ~= 17 then PlayerAnimationFrame2 = 0 PlayerAnimationFrame = 24 end
+					PlayerAnimationFrameMax = 48
+					if PlayerAnimationFrame2 == 0 then createChars(Charpic,28,SpriteNumber)
+					elseif PlayerAnimationFrame2 == 1 then createChars(Charpic,31,SpriteNumber)
+					end
+				elseif AnimateID == 18 then
+					createChars(Charpic,35,SpriteNumber)
+					if PrevAnim ~= 18 then PlayerAnimationFrame2 = 0 PlayerAnimationFrame = 24 end
+					PlayerAnimationFrameMax = 48
+					if PlayerAnimationFrame2 == 0 then createChars(Charpic,29,SpriteNumber)
+					elseif PlayerAnimationFrame2 == 1 then createChars(Charpic,32,SpriteNumber)
+					end
+				--If they are now equal
 				end
 			end
 			
@@ -13334,6 +20566,8 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 					PlayerAnimationFrame2 = 0
 				end
 			end
+			
+		PrevAnim = AnimateID
 		--PLAYERS
 		if PlayerNo == 1 then
 			MapX = XMap
@@ -13347,6 +20581,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			PlayerExtra1 = PlayerExtra
 			PlayerDirection = Direction
 			Facing = FacingDir
+			PlayerPrevAnimation[1] = PrevAnim
 		elseif PlayerNo == 2 then
 			MapX2 = XMap
 			MapY2 = YMap
@@ -13359,6 +20594,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			Player2Extra1 = PlayerExtra
 			Player2Direction = Direction
 			Facing2 = FacingDir
+			PlayerPrevAnimation[2] = PrevAnim
 		elseif PlayerNo == 3 then
 			MapX3 = XMap
 			MapY3 = YMap
@@ -13369,6 +20605,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			Player3AnimationFrame = PlayerAnimationFrame
 			Player3AnimationFrame2 = PlayerAnimationFrame2
 			Player3Extra1 = PlayerExtra
+			PlayerPrevAnimation[3] = PrevAnim
 		elseif PlayerNo == 4 then
 			MapX4 = XMap
 			MapY4 = YMap
@@ -13379,6 +20616,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			Player4AnimationFrame = PlayerAnimationFrame
 			Player4AnimationFrame2 = PlayerAnimationFrame2
 			Player4Extra1 = PlayerExtra
+			PlayerPrevAnimation[4] = PrevAnim
 		end
 end
 
@@ -13401,6 +20639,9 @@ function HandleSprites()
 	--PlayerExtra 17 = Down Bike
 	--PlayerExtra 18 = Up Bike
 	--PlayerExtra 19 or 20 = Left/Right Bike
+	
+	--PlayerExtra 33 - 36 = Surf still
+	--PlayerExtra 37 - 40 = Surf moving
 	
 	--Player 1 sprite
 	if PlayerID ~= 1 then
@@ -13506,6 +20747,34 @@ function HandleSprites()
 		
 		--bike hit wall right
 		elseif PlayerExtra1 == 32 then createChars(0,10,PlayerExtra2) PlayerDirection = 2 Facing = 1 AnimatePlayerMovement(1, 254)
+		
+		
+		--Surfing
+		
+		--Facing down
+		elseif PlayerExtra1 == 33 then PlayerDirection = 4 Facing = 0 AnimatePlayerMovement(1, 17)
+		
+		--Facing up
+		elseif PlayerExtra1 == 34 then PlayerDirection = 3 Facing = 0 AnimatePlayerMovement(1, 18)
+		
+		--Facing left
+		elseif PlayerExtra1 == 35 then PlayerDirection = 1 Facing = 0 AnimatePlayerMovement(1, 19)
+		
+		--Facing right
+		elseif PlayerExtra1 == 36 then PlayerDirection = 2 Facing = 1 AnimatePlayerMovement(1, 20)
+		
+		--surf down
+		elseif PlayerExtra1 == 37 then Facing = 0 PlayerDirection = 4 AnimatePlayerMovement(1, 21)
+		
+		--surf up
+		elseif PlayerExtra1 == 38 then Facing = 0 PlayerDirection = 3 AnimatePlayerMovement(1, 22)
+		
+		--surf left
+		elseif PlayerExtra1 == 39 then Facing = 0 PlayerDirection = 1 AnimatePlayerMovement(1, 23)
+		
+		--surf right
+		elseif PlayerExtra1 == 40 then Facing = 1 PlayerDirection = 2 AnimatePlayerMovement(1, 24)
+		
 		
 		
 		--default position
@@ -13646,6 +20915,34 @@ function HandleSprites()
 		elseif Player2Extra1 == 32 then createChars(1,10,Player2Extra2) Player2Direction = 2 Facing2 = 1 AnimatePlayerMovement(2, 254)
 		
 		
+		--Surfing
+		
+		--Facing down
+		elseif Player2Extra1 == 33 then Player2Direction = 4 Facing2 = 0 AnimatePlayerMovement(2, 17)
+		
+		--Facing up
+		elseif Player2Extra1 == 34 then Player2Direction = 3 Facing2 = 0 AnimatePlayerMovement(2, 18)
+		
+		--Facing left
+		elseif Player2Extra1 == 35 then Player2Direction = 1 Facing2 = 0 AnimatePlayerMovement(2, 19)
+		
+		--Facing right
+		elseif Player2Extra1 == 36 then Player2Direction = 2 Facing2 = 1 AnimatePlayerMovement(2, 20)
+		
+		--surf down
+		elseif Player2Extra1 == 37 then Facing2 = 0 Player2Direction = 4 AnimatePlayerMovement(2, 21)
+		
+		--surf up
+		elseif Player2Extra1 == 38 then Facing2 = 0 Player2Direction = 3 AnimatePlayerMovement(2, 22)
+		
+		--surf left
+		elseif Player2Extra1 == 39 then Facing2 = 0 Player2Direction = 1 AnimatePlayerMovement(2, 23)
+		
+		--surf right
+		elseif Player2Extra1 == 40 then Facing2 = 1 Player2Direction = 2 AnimatePlayerMovement(2, 24)
+		
+		
+		
 		--default position
 		elseif Player2Extra1 == 0 then Facing2 = 0 AnimatePlayerMovement(2, 255)
 		
@@ -13782,16 +21079,24 @@ function DrawChars()
 		CalculateCamera()
 			if PlayerID ~= 1 then DrawPlayer1() end
 			if PlayerID ~= 2 then DrawPlayer2() end
-			if PlayerID ~= 3 then DrawPlayer3() end
-			if PlayerID ~= 4 then DrawPlayer4() end
+		--	if PlayerID ~= 3 then DrawPlayer3() end
+		--	if PlayerID ~= 4 then DrawPlayer4() end
 		end
 	end
 end
 
 function DrawPlayer1()
+		local u32 PlayerYAddress = 0
+		local u32 PlayerXAddress = 0
+		local u32 PlayerFaceAddress = 0
+		local u32 PlayerSpriteAddress = 0
+		local u32 PlayerExtra1Address = 0
+		local u32 PlayerExtra2Address = 0
+		local u32 PlayerExtra3Address = 0
+		local u32 PlayerExtra4Address = 0
 		if GameID == "BPRE" then
 			--Addresses for Firered
-			Player1Address = 50345200
+			Player1Address = 50345168
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -13802,7 +21107,7 @@ function DrawPlayer1()
 			PlayerExtra4Address = PlayerYAddress + 7
 		elseif GameID == "BPGE" then
 			--Addresses for Leafgreen
-			Player1Address = 50345200
+			Player1Address = 50345168
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -13864,7 +21169,53 @@ function DrawPlayer1()
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 2496)
+				emu:write16(PlayerExtra1Address, 2560)
+				emu:write8(PlayerExtra3Address, 0)
+				emu:write8(PlayerExtra4Address, 0)
+				--Surfing char
+				PlayerYAddress = Player1Address + 8
+				PlayerXAddress = PlayerYAddress + 2
+				PlayerFaceAddress = PlayerYAddress + 3
+				PlayerSpriteAddress = PlayerYAddress + 1
+				PlayerExtra1Address = PlayerYAddress + 4
+				PlayerExtra2Address = PlayerYAddress + 5
+				PlayerExtra3Address = PlayerYAddress + 6
+				PlayerExtra4Address = PlayerYAddress + 7
+				emu:write8(PlayerYAddress, 160)
+				emu:write8(PlayerXAddress, 48)
+				emu:write8(PlayerFaceAddress, 1)
+				emu:write8(PlayerSpriteAddress, 0)
+				emu:write16(PlayerExtra1Address, 12)
+				emu:write8(PlayerExtra3Address, 0)
+				emu:write8(PlayerExtra4Address, 1)
+				--Same with surf
+				elseif PlayerExtra1 >= 33 and PlayerExtra1 <= 40 then
+				if Player1AnimationFrame2 == 1 and PlayerExtra1 <= 36 then FinalMapY = FinalMapY + 1 end
+				--Sitting char
+				emu:write8(PlayerXAddress, FinalMapX)
+				emu:write8(PlayerYAddress, FinalMapY)
+				emu:write8(PlayerFaceAddress, FacingTemp)
+				emu:write8(PlayerSpriteAddress, 128)
+				emu:write16(PlayerExtra1Address, 2560)
+				emu:write8(PlayerExtra3Address, 0)
+				emu:write8(PlayerExtra4Address, 0)
+				--Surfing char
+				if Player1AnimationFrame2 == 1 and PlayerExtra1 <= 36 then FinalMapY = FinalMapY - 1 end
+				FinalMapX = FinalMapX - 8
+				FinalMapY = FinalMapY + 8
+				PlayerYAddress = Player1Address + 8
+				PlayerXAddress = PlayerYAddress + 2
+				PlayerFaceAddress = PlayerYAddress + 3
+				PlayerSpriteAddress = PlayerYAddress + 1
+				PlayerExtra1Address = PlayerYAddress + 4
+				PlayerExtra2Address = PlayerYAddress + 5
+				PlayerExtra3Address = PlayerYAddress + 6
+				PlayerExtra4Address = PlayerYAddress + 7
+				emu:write8(PlayerXAddress, FinalMapX)
+				emu:write8(PlayerYAddress, FinalMapY)
+				emu:write8(PlayerFaceAddress, FacingTemp)
+				emu:write8(PlayerSpriteAddress, 0)
+				emu:write16(PlayerExtra1Address, 2578)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
 				else
@@ -13872,12 +21223,44 @@ function DrawPlayer1()
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2496)
+				emu:write16(PlayerExtra1Address, 2560)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
+				--Surfing char
+				PlayerYAddress = Player1Address + 8
+				PlayerXAddress = PlayerYAddress + 2
+				PlayerFaceAddress = PlayerYAddress + 3
+				PlayerSpriteAddress = PlayerYAddress + 1
+				PlayerExtra1Address = PlayerYAddress + 4
+				PlayerExtra2Address = PlayerYAddress + 5
+				PlayerExtra3Address = PlayerYAddress + 6
+				PlayerExtra4Address = PlayerYAddress + 7
+				emu:write8(PlayerYAddress, 160)
+				emu:write8(PlayerXAddress, 48)
+				emu:write8(PlayerFaceAddress, 1)
+				emu:write8(PlayerSpriteAddress, 0)
+				emu:write16(PlayerExtra1Address, 12)
+				emu:write8(PlayerExtra3Address, 0)
+				emu:write8(PlayerExtra4Address, 1)
 				end
 			--Remove sprite
 			else
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
+					--Surfing char
+					PlayerYAddress = Player1Address + 8
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
 					emu:write8(PlayerYAddress, 160)
 					emu:write8(PlayerXAddress, 48)
 					emu:write8(PlayerFaceAddress, 1)
@@ -13895,13 +21278,36 @@ function DrawPlayer1()
 				emu:write16(PlayerExtra1Address, 12)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 1)
+					--Surfing char
+					PlayerYAddress = Player1Address + 8
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
 		end
 end
 function DrawPlayer2()
-		local u32 Player2Extra4Address = 0
+		local u32 PlayerYAddress = 0
+		local u32 PlayerXAddress = 0
+		local u32 PlayerFaceAddress = 0
+		local u32 PlayerSpriteAddress = 0
+		local u32 PlayerExtra1Address = 0
+		local u32 PlayerExtra2Address = 0
+		local u32 PlayerExtra3Address = 0
+		local u32 PlayerExtra4Address = 0
 		if GameID == "BPRE" then
 			--Addresses for Firered
-			Player1Address = 50345208
+			Player1Address = 50345184
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -13912,7 +21318,7 @@ function DrawPlayer2()
 			PlayerExtra4Address = PlayerYAddress + 7
 		elseif GameID == "BPGE" then
 			--Addresses for Leafgreen
-			Player1Address = 50345208
+			Player1Address = 50345184
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -13954,6 +21360,7 @@ function DrawPlayer2()
 		if not ((FinalMapX > MaxX or FinalMapX < MinX) or (FinalMapY > MaxY or FinalMapY < MinY)) then 
 			
 			if Player2Vis == 1 then
+		--		if TempVar2 == 0 then console:createBuffer("EXTRA 1: " .. Player2Extra1) end
 				--Bikes need different vars
 				if Player2Extra1 >= 17 and Player2Extra1 <= 32 then
 				FinalMapX = FinalMapX - 8
@@ -13961,7 +21368,53 @@ function DrawPlayer2()
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 2512)
+				emu:write16(PlayerExtra1Address, 2592)
+				emu:write8(PlayerExtra3Address, 0)
+				emu:write8(PlayerExtra4Address, 0)
+					--Surfing char
+					PlayerYAddress = Player1Address + 8
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
+				--Same with surf
+				elseif Player2Extra1 >= 33 and Player2Extra1 <= 40 then
+				--Sitting char
+				if Player2AnimationFrame2 == 1 and Player2Extra1 <= 36 then FinalMapY = FinalMapY + 1 end
+				emu:write8(PlayerXAddress, FinalMapX)
+				emu:write8(PlayerYAddress, FinalMapY)
+				emu:write8(PlayerFaceAddress, FacingTemp)
+				emu:write8(PlayerSpriteAddress, 128)
+				emu:write16(PlayerExtra1Address, 2592)
+				emu:write8(PlayerExtra3Address, 0)
+				emu:write8(PlayerExtra4Address, 0)
+				--Surfing char
+				if Player2AnimationFrame2 == 1 and Player2Extra1 <= 36 then FinalMapY = FinalMapY - 1 end
+				FinalMapX = FinalMapX - 8
+				FinalMapY = FinalMapY + 8
+				PlayerYAddress = Player1Address + 8
+				PlayerXAddress = PlayerYAddress + 2
+				PlayerFaceAddress = PlayerYAddress + 3
+				PlayerSpriteAddress = PlayerYAddress + 1
+				PlayerExtra1Address = PlayerYAddress + 4
+				PlayerExtra2Address = PlayerYAddress + 5
+				PlayerExtra3Address = PlayerYAddress + 6
+				PlayerExtra4Address = PlayerYAddress + 7
+				emu:write8(PlayerXAddress, FinalMapX)
+				emu:write8(PlayerYAddress, FinalMapY)
+				emu:write8(PlayerFaceAddress, FacingTemp)
+				emu:write8(PlayerSpriteAddress, 0)
+				emu:write16(PlayerExtra1Address, 2610)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
 				else
@@ -13969,12 +21422,44 @@ function DrawPlayer2()
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2512)
+				emu:write16(PlayerExtra1Address, 2592)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
+					--Surfing char
+					PlayerYAddress = Player1Address + 8
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
 				end
 			--Remove sprite
 			else
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
+					--Surfing char
+					PlayerYAddress = Player1Address + 8
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
 					emu:write8(PlayerYAddress, 160)
 					emu:write8(PlayerXAddress, 48)
 					emu:write8(PlayerFaceAddress, 1)
@@ -13992,12 +21477,28 @@ function DrawPlayer2()
 				emu:write16(PlayerExtra1Address, 12)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 1)
+					--Surfing char
+					PlayerYAddress = Player1Address + 8
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
 		end
 end
 function DrawPlayer3()
 		if GameID == "BPRE" then
 			--Addresses for Firered
-			Player1Address = 50345216
+			Player1Address = 50345200
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -14041,7 +21542,7 @@ function DrawPlayer3()
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2528)
+				emu:write16(PlayerExtra1Address, 2624)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
 			--Remove sprite
@@ -14068,7 +21569,7 @@ end
 function DrawPlayer4()
 		if GameID == "BPRE" then
 			--Addresses for Firered
-			Player1Address = 50345224
+			Player1Address = 50345216
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -14112,7 +21613,7 @@ function DrawPlayer4()
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2544)
+				emu:write16(PlayerExtra1Address, 2656)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
 			--Remove sprite
@@ -14172,99 +21673,273 @@ function CreateNetwork()
 --		end
 --	end
 end
-
+function SetPokemonData(PokeData)
+	if string.len(EnemyPokemon[1]) < 250 then EnemyPokemon[1] = EnemyPokemon[1] .. PokeData
+	elseif string.len(EnemyPokemon[2]) < 250 then EnemyPokemon[2] = EnemyPokemon[2] .. PokeData
+	elseif string.len(EnemyPokemon[3]) < 250 then EnemyPokemon[3] = EnemyPokemon[3] .. PokeData
+	elseif string.len(EnemyPokemon[4]) < 250 then EnemyPokemon[4] = EnemyPokemon[4] .. PokeData
+	elseif string.len(EnemyPokemon[5]) < 250 then EnemyPokemon[5] = EnemyPokemon[5] .. PokeData
+	elseif string.len(EnemyPokemon[6]) < 250 then EnemyPokemon[6] = EnemyPokemon[6] .. PokeData
+	end
+end
 function ReceiveData(Clientell)
 			if EnableScript == true then
 			--Check if anybody wants to connect
 				if (Clientell:hasdata()) then
-					local ReadData = Clientell:receive(64)
-				
-				if ReadData ~= nil then
-					ConfirmEncrypt = 0
-					--Decryption for packet
-					GameCodeTemp = string.sub(ReadData,1,4)
-					NicknameTemp = string.sub(ReadData,5,8)
-					PlayerIDTemp = tonumber(string.sub(ReadData,9,9))
-					ConnectionTypeTemp = string.sub(ReadData,10,13)
-					Connection1TempVar1 = string.sub(ReadData,14,14)
-					Player1XTemp = string.sub(ReadData,15,16)
-					Player1YTemp = string.sub(ReadData,17,18)
-					Player1FacingTemp = string.sub(ReadData,19,19)
-					Player1FacingTemp = tonumber(Player1FacingTemp)
-					Player2XTemp = string.sub(ReadData,20,21)
-					Player2YTemp = string.sub(ReadData,22,23)
-					Player2FacingTemp = string.sub(ReadData,24,24)
-					Player3XTemp = string.sub(ReadData,25,26)
-					Player3YTemp = string.sub(ReadData,27,28)
-					Player3FacingTemp = string.sub(ReadData,29,29)
-					Player4XTemp = string.sub(ReadData,30,31)
-					Player4YTemp = string.sub(ReadData,32,33)
-					Player4FacingTemp = string.sub(ReadData,34,34)
-					Player1ExtraTemp1 = string.sub(ReadData,35,36)
-					Player1ExtraTemp2 = string.sub(ReadData,37,38)
-					Player2ExtraTemp1 = string.sub(ReadData,39, 40)
-					Player2ExtraTemp2 = string.sub(ReadData,41,42)
-					Player3ExtraTemp1 = string.sub(ReadData,43,44)
-					Player3ExtraTemp2 = string.sub(ReadData,45,46)
-					Player4ExtraTemp1 = string.sub(ReadData,47,48)
-					Player4ExtraTemp2 = string.sub(ReadData,49,50)
-					MapIDTemp = string.sub(ReadData,50,56)
-					PrevMapIDTemp = string.sub(ReadData,57,62)
-					MapIDConnection = string.sub(ReadData,63,63)
-					ConfirmEncrypt = string.sub(ReadData,64,64)
-					ConfirmEncrypt = tonumber(ConfirmEncrypt)
+				local ReadData = Clientell:receive(64)
+			--	local StringLen = 0
 					
-					if ConfirmEncrypt ~= 0 and (Player1FacingTemp == ConfirmEncrypt) then
+				if ReadData ~= nil then
+					--Encryption key
+					ReceiveDataSmall[29] = 0
+					ReceiveDataSmall[1] = string.sub(ReadData,1,4)
+					ReceiveDataSmall[2] = string.sub(ReadData,5,8)
+					ReceiveDataSmall[3] = tonumber(string.sub(ReadData,9,9))
+					ReceiveDataSmall[4] = string.sub(ReadData,10,13)
+					ReceiveDataSmall[29] = string.sub(ReadData,64,64)
+					ReceiveDataSmall[29] = tonumber(ReceiveDataSmall[29])
+			--		if ReceiveDataSmall[4] == "BATT" then console:createBuffer("Valid package! Contents: " .. ReadData) end
+					if ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "SLNK" then
+					--		console:createBuffer("RECEIVED DATA")
+							ReceiveDataSmall[5] = string.sub(ReadData,14,23)
+							ReceiveDataSmall[5] = tonumber(ReceiveDataSmall[5])
+							if ReceiveDataSmall[5] ~= 0 then
+								ReceiveDataSmall[5] = ReceiveDataSmall[5] - 1000000000
+								ReceiveMultiplayerPackets(ReceiveDataSmall[5], Player2)
+							end
+					elseif ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "POKE" then
+							if ReceiveDataSmall[3] == 2 then timeout1 = timeoutmax end
+							local PokeTemp2 = string.sub(ReadData,14,63)
+							SetPokemonData(PokeTemp2)
+					elseif ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "TRAD" then
+						EnemyTradeVars[1] = string.sub(ReadData,14,14)
+						EnemyTradeVars[2] = string.sub(ReadData,15,15)
+						EnemyTradeVars[3] = string.sub(ReadData,16,16)
+						EnemyTradeVars[4] = string.sub(ReadData,17,17)
+						EnemyTradeVars[5] = string.sub(ReadData,24,63)
+						EnemyTradeVars[1] = tonumber(EnemyTradeVars[1])
+						EnemyTradeVars[2] = tonumber(EnemyTradeVars[2])
+						EnemyTradeVars[3] = tonumber(EnemyTradeVars[3])
+						EnemyTradeVars[4] = tonumber(EnemyTradeVars[4])
+					elseif ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "BATT" then
+						EnemyBattleVars[1] = string.sub(ReadData,14,14)
+						EnemyBattleVars[2] = string.sub(ReadData,15,15)
+						EnemyBattleVars[3] = string.sub(ReadData,16,16)
+						EnemyBattleVars[4] = string.sub(ReadData,17,17)
+						EnemyBattleVars[5] = string.sub(ReadData,18,18)
+						EnemyBattleVars[6] = string.sub(ReadData,19,19)
+						EnemyBattleVars[7] = string.sub(ReadData,20,20)
+						EnemyBattleVars[8] = string.sub(ReadData,21,21)
+						EnemyBattleVars[9] = string.sub(ReadData,22,22)
+						EnemyBattleVars[10] = string.sub(ReadData,23,23)
+						EnemyBattleVars[1] = tonumber(EnemyBattleVars[1])
+						EnemyBattleVars[2] = tonumber(EnemyBattleVars[2])
+						EnemyBattleVars[3] = tonumber(EnemyBattleVars[3])
+						EnemyBattleVars[4] = tonumber(EnemyBattleVars[4])
+						EnemyBattleVars[5] = tonumber(EnemyBattleVars[5])
+						EnemyBattleVars[6] = tonumber(EnemyBattleVars[6])
+						EnemyBattleVars[7] = tonumber(EnemyBattleVars[7])
+						EnemyBattleVars[8] = tonumber(EnemyBattleVars[8])
+						EnemyBattleVars[9] = tonumber(EnemyBattleVars[9])
+						EnemyBattleVars[10] = tonumber(EnemyBattleVars[10])
+					
+					elseif ReceiveDataSmall[3] == ReceiveDataSmall[29] then
+								--Decryption for packet
+							--Type of packet
+							ReceiveDataSmall[4] = string.sub(ReadData,10,13)
+							--Packet Temp 1
+							ReceiveDataSmall[5] = string.sub(ReadData,14,14)
+							--X Player 1
+							ReceiveDataSmall[6] = string.sub(ReadData,15,16)
+							--Y Player 1
+							ReceiveDataSmall[7] = string.sub(ReadData,17,18)
+							--Player 1 Vis
+							ReceiveDataSmall[8] = string.sub(ReadData,19,19)
+							ReceiveDataSmall[8] = tonumber(ReceiveDataSmall[8])
+							--Player 2
+							ReceiveDataSmall[9] = string.sub(ReadData,20,21)
+							ReceiveDataSmall[10] = string.sub(ReadData,22,23)
+							ReceiveDataSmall[11] = string.sub(ReadData,24,24)
+							--Player 3
+							ReceiveDataSmall[12] = string.sub(ReadData,25,26)
+							ReceiveDataSmall[13] = string.sub(ReadData,27,28)
+							ReceiveDataSmall[14] = string.sub(ReadData,29,29)
+							--Player 4
+							ReceiveDataSmall[15] = string.sub(ReadData,30,31)
+							ReceiveDataSmall[16] = string.sub(ReadData,32,33)
+							ReceiveDataSmall[17] = string.sub(ReadData,34,34)
+							--Extra 1 and 2 for players 1-4
+							ReceiveDataSmall[18] = string.sub(ReadData,35,36)
+							ReceiveDataSmall[19] = string.sub(ReadData,37,38)
+							ReceiveDataSmall[20] = string.sub(ReadData,39, 40)
+							ReceiveDataSmall[21] = string.sub(ReadData,41,42)
+							ReceiveDataSmall[22] = string.sub(ReadData,43,44)
+							ReceiveDataSmall[23] = string.sub(ReadData,45,46)
+							ReceiveDataSmall[24] = string.sub(ReadData,47,48)
+							ReceiveDataSmall[25] = string.sub(ReadData,49,50)
+							--Map ID
+							ReceiveDataSmall[26] = string.sub(ReadData,50,56)
+							--Prev Map ID
+							ReceiveDataSmall[27] = string.sub(ReadData,57,62)
+							--ConnectionType
+							ReceiveDataSmall[28] = string.sub(ReadData,63,63)
+						
 						--Set connection type to var
-							ReturnConnectionType = ConnectionTypeTemp
+							ReturnConnectionType = ReceiveDataSmall[4]
 						
 					--	console:createBuffer("Valid package! Contents: " .. ReadData)
+				--	if ReceiveDataSmall[4] == "DTRA" then console:createBuffer("Locktype: " .. LockFromScript) end
+						
+						if ReceiveDataSmall[4] == "RPOK" and ReceiveDataSmall[3] == 2 then
+							CreatePackettSpecial("POKE",Player2)
+						end
+						
+						--If player 2 requests for a battle
+						if ReceiveDataSmall[4] == "RBAT" and ReceiveDataSmall[3] == 2 and LockFromScript == 0 then
+							local TooBusyByte = emu:read8(50335644)
+							if TooBusyByte ~= 0 then
+								SendData("TBUS", Player2)
+							else
+								OtherPlayerHasCancelled = 0
+								LockFromScript = 12
+								Loadscript(10)
+							end
+						end
+						
+						--If player 2 requests for a trade
+						if ReceiveDataSmall[4] == "RTRA" and ReceiveDataSmall[3] == 2 and LockFromScript == 0 then
+							local TooBusyByte = emu:read8(50335644)
+							if TooBusyByte ~= 0 then
+								SendData("TBUS", Player2)
+							else
+								OtherPlayerHasCancelled = 0
+								LockFromScript = 13
+								Loadscript(6)
+							end
+						end
+						
+						--If player 2 is too busy to battle
+						if ReceiveDataSmall[4] == "TBUS" and ReceiveDataSmall[3] == 2 and LockFromScript == 4 then
+						--	console:createBuffer("Other player is too busy to battle.")
+							if Var8000[2] ~= 0 then
+								LockFromScript = 7
+								Loadscript(20)
+							else
+								TextSpeedWait = 5
+							end
+						--If player 2 is too busy to trade
+						elseif ReceiveDataSmall[4] == "TBUS" and ReceiveDataSmall[3] == 2 and LockFromScript == 5 then
+						--	console:createBuffer("Other player is too busy to trade.")
+							if Var8000[2] ~= 0 then
+								LockFromScript = 7
+								Loadscript(21)
+							else
+								TextSpeedWait = 6
+							end
+						end
+						
+						--If player 2 cancels battle
+						if ReceiveDataSmall[4] == "CBAT" and ReceiveDataSmall[3] == 2 then
+					--		console:createBuffer("Other player has canceled battle.")
+							OtherPlayerHasCancelled = 1
+						end
+						--If player 2 cancels trade
+						if ReceiveDataSmall[4] == "CTRA" and ReceiveDataSmall[3] == 2 then
+					--		console:createBuffer("Other player has canceled trade.")
+							OtherPlayerHasCancelled = 2
+						end
+						
+						--If player 2 accepts your battle request
+						if ReceiveDataSmall[4] == "SBAT" and ReceiveDataSmall[3] == 2 and LockFromScript == 4 then
+							SendData("RPOK", Player2)
+							if Var8000[2] ~= 0 then
+								LockFromScript = 8
+								Loadscript(13)
+							else
+								TextSpeedWait = 1
+							end
+						end
+						--If player 2 accepts your trade request
+						if ReceiveDataSmall[4] == "STRA" and ReceiveDataSmall[3] == 2 and LockFromScript == 5 then
+							SendData("RPOK", Player2)
+							if Var8000[2] ~= 0 then
+								LockFromScript = 9
+								Loadscript(14)
+							else
+								TextSpeedWait = 2
+							end
+						end
+						
+						--If player 2 denies your battle request
+						if ReceiveDataSmall[4] == "DBAT" and ReceiveDataSmall[3] == 2 and LockFromScript == 4 then
+							if Var8000[2] ~= 0 then
+								LockFromScript = 7
+								Loadscript(11)
+							else
+								TextSpeedWait = 3
+							end
+						end
+						--If player 2 denies your trade request
+						if ReceiveDataSmall[4] == "DTRA" and ReceiveDataSmall[3] == 2 and LockFromScript == 5 then
+							if Var8000[2] ~= 0 then
+								LockFromScript = 7
+								Loadscript(7)
+							else
+								TextSpeedWait = 4
+							end
+						end
+						
+						--If player 2 refuses trade offer
+						if ReceiveDataSmall[4] == "ROFF" and ReceiveDataSmall[3] == 2 and LockFromScript == 9 then
+							OtherPlayerHasCancelled = 3
+						end
+						
 						
 						--GPOS
-						if ConnectionTypeTemp == "GPOS" then
-				--			if PlayerIDTemp == 1 then
-				--				MapX = tonumber(Player1XTemp)
-				--				MapY = tonumber(Player1YTemp)
-				--				Facing = tonumber(Player1FacingTemp)
+						if ReceiveDataSmall[4] == "GPOS" then
+				--			if ReceiveDataSmall[3] == 1 then
+				--				MapX = tonumber(ReceiveDataSmall[6])
+				--				MapY = tonumber(ReceiveDataSmall[7])
+				--				Facing = tonumber(ReceiveDataSmall[8])
 				--				PlayerExtra1 = tonumber(Player1ExtraTemp)
 				--				Player1Vis = tonumber(Player1VisibleTemp)
 				--			end
-							if Player2ID ~= "None" and PlayerIDTemp == 2 then
+							if Player2ID ~= "None" and ReceiveDataSmall[3] == 2 then
 								timeout1 = timeoutmax
-								MapIDTemp = tonumber(MapIDTemp)
-								if MapID2 ~= MapIDTemp then
+								ReceiveDataSmall[26] = tonumber(ReceiveDataSmall[26])
+								if MapID2 ~= ReceiveDataSmall[26] then
 									NewMap2 = 1
-									MapStartX2 = tonumber(Player2XTemp)
-									MapStartY2 = tonumber(Player2YTemp)
+									MapStartX2 = tonumber(ReceiveDataSmall[9])
+									MapStartY2 = tonumber(ReceiveDataSmall[10])
 									if MapStartX2 > 9 then MapStartX2 = MapStartX2 - 10 end
 									if MapStartY2 > 9 then MapStartY2 = MapStartY2 - 10 end
-									MapID2 = MapIDTemp
-						--			console:createBuffer("MapIDP2: " .. MapID2 .. " MapIDP2Prev: " .. PrevMapIDTemp)
+									MapID2 = ReceiveDataSmall[26]
+						--			console:createBuffer("MapIDP2: " .. MapID2 .. " MapIDP2Prev: " .. ReceiveDataSmall[27])
 								end
 								if MapID2 == PlayerMapID then
-									MapX2Prev = tonumber(Player2XTemp)
-									MapY2Prev = tonumber(Player2YTemp)
+									MapX2Prev = tonumber(ReceiveDataSmall[9])
+									MapY2Prev = tonumber(ReceiveDataSmall[10])
 									if MapX2Prev > 9 then MapX2Prev = MapX2Prev - 10 end
 									if MapY2Prev > 9 then MapY2Prev = MapY2Prev - 10 end
 								end
-								NewMapX2 = tonumber(Player2XTemp)
-								NewMapY2 = tonumber(Player2YTemp)
+								NewMapX2 = tonumber(ReceiveDataSmall[9])
+								NewMapY2 = tonumber(ReceiveDataSmall[10])
 						--		console:createBuffer("MapX: " .. NewMapX2 .. " MapY: " .. NewMapY2)
-						--		Facing2 = tonumber(Player2FacingTemp)
-								Player2Extra1 = tonumber(Player2ExtraTemp1)
-								Player2Extra2 = tonumber(Player2ExtraTemp2)
-					--			console:createBuffer("Player2Extra2: " .. Player2ExtraTemp2)
+						--		Facing2 = tonumber(ReceiveDataSmall[11])
+								Player2Extra1 = tonumber(ReceiveDataSmall[20])
+								Player2Extra2 = tonumber(ReceiveDataSmall[21])
+					--			console:createBuffer("Player2Extra2: " .. ReceiveDataSmall[21])
 								FixPositionPlayer2()
-								NewMapConnect2Prev = tonumber(PrevMapIDTemp)
-								NewMapConnect2 = tonumber(MapIDConnection)
+								NewMapConnect2Prev = tonumber(ReceiveDataSmall[27])
+								NewMapConnect2 = tonumber(ReceiveDataSmall[28])
 							end
-							if Player3ID ~= "None" and PlayerIDTemp == 3 then
+							if Player3ID ~= "None" and ReceiveDataSmall[3] == 3 then
 							end
-							if Player4ID ~= "None" and PlayerIDTemp == 4 then
+							if Player4ID ~= "None" and ReceiveDataSmall[3] == 4 then
 							end
 						end
 						--TIME
-			--			if ConnectionTypeTemp == "TIME" then
+			--			if ReceiveDataSmall[4] == "TIME" then
 			--				if PlayerTempVar1 == 2 then
 			--					timeout1 = 5
 			--				elseif PlayerTempVar1 == 3 then
@@ -14276,34 +21951,34 @@ function ReceiveData(Clientell)
 						
 						
 						--If nickname doesn't already exist on server and request to join
-						if ConnectionTypeTemp == "JOIN" then
+						if ReceiveDataSmall[4] == "JOIN" then
 						
-						--	if (NicknameTemp ~= None) then if (NicknameTemp ~= Player2ID and NicknameTemp ~= Player3ID  and NicknameTemp ~= Player4ID) then
-							if (NicknameTemp ~= None) then
-								if (NicknameTemp ~= Player2ID) then
-									console:createBuffer("Player " .. NicknameTemp .. " has successfully connected.")
+						--	if (ReceiveDataSmall[2] ~= None) then if (ReceiveDataSmall[2] ~= Player2ID and ReceiveDataSmall[2] ~= Player3ID  and ReceiveDataSmall[2] ~= Player4ID) then
+							if (ReceiveDataSmall[2] ~= None) then
+								if (ReceiveDataSmall[2] ~= Player2ID) then
+									console:createBuffer("Player " .. ReceiveDataSmall[2] .. " has successfully connected.")
 									if Connected == 0 then Connected = 1 end
 									if Player2ID == "None" then
-											Player2ID = NicknameTemp
+											Player2ID = ReceiveDataSmall[2]
 											Player2 = Clientell
 											Player2Vis = 1
-											MapX2Prev = tonumber(Player1XTemp)
-											MapY2Prev = tonumber(Player1YTemp)
-											MapX2 = tonumber(Player1XTemp)
-											MapY2 = tonumber(Player1YTemp)
-											NewMapX2 = tonumber(Player1XTemp)
-											NewMapY2 = tonumber(Player1YTemp)
+											MapX2Prev = tonumber(ReceiveDataSmall[6])
+											MapY2Prev = tonumber(ReceiveDataSmall[7])
+											MapX2 = tonumber(ReceiveDataSmall[6])
+											MapY2 = tonumber(ReceiveDataSmall[7])
+											NewMapX2 = tonumber(ReceiveDataSmall[6])
+											NewMapY2 = tonumber(ReceiveDataSmall[7])
 											SendData("NewPlayer2", Player2)
 											timeout1 = timeoutmax
 							--4 Player Support in the future, too unstable now and need to add many more things first
 							--		elseif Player3ID == "None" then
-							--				Player3ID = NicknameTemp
+							--				Player3ID = ReceiveDataSmall[2]
 							--				Player3 = Clientell
 							--				Player3Vis = 1
 							--				SendData("NewPlayer3", Player3)
 							--				timeout2 = timeoutmax
 							--		elseif Player4ID == "None" then
-							--				Player4ID = NicknameTemp
+							--				Player4ID = ReceiveDataSmall[2]
 							--				Player4 = Clientell
 							--				Player4Vis = 1
 							--				SendData("NewPlayer4", Player4)
@@ -14326,6 +22001,50 @@ function ReceiveData(Clientell)
 	end
 end
 
+function CreatePackettSpecial(RequestTemp, Socket2, OptionalData)
+	if RequestTemp == "POKE" then
+		GetPokemonTeam()
+		local PokeTemp
+	--	local Filler = "FFFFFFFFFFFFFFFFFFFF"
+		for j = 1, 6 do
+			PokeTemp = string.sub(Pokemon[j],1,50)
+			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
+			Socket2:send(Packett)
+		--	console:createBuffer("Packett: " .. Packett)
+			PokeTemp = string.sub(Pokemon[j],51,100)
+			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
+			Socket2:send(Packett)
+			PokeTemp = string.sub(Pokemon[j],101,150)
+			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
+			Socket2:send(Packett)
+			PokeTemp = string.sub(Pokemon[j],151,200)
+			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
+			Socket2:send(Packett)
+			PokeTemp = string.sub(Pokemon[j],201,250)
+			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
+			Socket2:send(Packett)
+		--		console:createBuffer("Packett: " .. Packett)
+		end
+	elseif RequestTemp == "TRAD" then
+		local FillerSend = "100000"
+		Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. TradeVars[1] .. TradeVars[2] .. TradeVars[3] .. TradeVars[4] .. FillerSend .. TradeVars[5] .. PlayerID
+		Socket2:send(Packett)
+	elseif RequestTemp == "BATT" then
+		local FillerSend = "1000000000000000000000000000000000000000"
+		Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. BattleVars[1] .. BattleVars[2] .. BattleVars[3] .. BattleVars[4] .. BattleVars[5] .. BattleVars[6] .. BattleVars[7] .. BattleVars[8] .. BattleVars[9] .. BattleVars[10] .. FillerSend .. PlayerID
+	--	console:createBuffer("Packett: " .. Packett)
+		Socket2:send(Packett)
+	elseif RequestTemp == "SLNK" then
+		OptionalData = OptionalData or 0
+		local Filler = "1000000000000000000000000000000000000000"
+		local SizeAct = OptionalData + 1000000000
+ --		SizeAct = tostring(SizeAct)
+--		SizeAct = string.format("%.0f",SizeAct)
+		Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. SizeAct .. Filler .. PlayerID
+--		console:createBuffer("Packett: " .. Packett)
+		Socket2:send(Packett)
+	end
+end
 --Send Data to clients
 function CreatePackett(RequestTemp, PackettTemp)
 	PlayerExtra1 = PlayerExtra1 + 10
@@ -14336,10 +22055,6 @@ function CreatePackett(RequestTemp, PackettTemp)
 	Player3Extra2 = Player3Extra2 + 10
 	Player4Extra1 = Player4Extra1 + 10
 	Player4Extra2 = Player4Extra2 + 10
-	Facing = 5
-	Facing2 = 5
-	Facing3 = 5
-	Facing4 = 5
 	if MapX < 90 then MapX = MapX + 10 end
 	if MapX2 < 90 then MapX2 = MapX2 + 10 end
 	if MapX3 < 90 then MapX3 = MapX3 + 10 end
@@ -14348,6 +22063,10 @@ function CreatePackett(RequestTemp, PackettTemp)
 	if MapY2 < 90 then MapY2 = MapY2 + 10 end
 	if MapY3 < 90 then MapY3 = MapY3 + 10 end
 	if MapY4 < 90 then MapY4 = MapY4 + 10 end
+	Facing = 5
+	Facing2 = 5
+	Facing3 = 5
+	Facing4 = 5
 	local Player1VisTemp = 0
 	local Player2VisTemp = 0
 	local Player3VisTemp = 0
@@ -14361,7 +22080,7 @@ function CreatePackett(RequestTemp, PackettTemp)
 		RequestTemp = "SPOS"
 	--	console:createBuffer("SPO2 RECEIVED! Sending to " .. TempVar1 .. " Map 1: " .. MapID .. " Map 2: " .. MapID2 .. " Vars: " .. PackettTemp )
 	end
-	Packett =  GameID .. Nickname .. PlayerID .. RequestTemp .. PackettTemp .. NewMapConnect .. MapX .. MapY .. Facing .. Player1VisTemp .. MapX2 .. MapY2 .. Facing2 .. Player2VisTemp .. MapX3 .. MapY3 .. Facing3 .. Player3VisTemp .. MapX4 .. MapY4 .. Facing4 .. Player4VisTemp .. PlayerExtra1 .. PlayerExtra2 .. Player2Extra1 .. Player2Extra2 .. Player3Extra1 .. Player3Extra2 .. Player4Extra1 .. Player4Extra2 .. PlayerMapID .. Facing
+	Packett =  GameID .. Nickname .. PlayerID .. RequestTemp .. PackettTemp .. NewMapConnect .. MapX .. MapY .. Facing .. Player1VisTemp .. MapX2 .. MapY2 .. Facing2 .. Player2VisTemp .. MapX3 .. MapY3 .. Facing3 .. Player3VisTemp .. MapX4 .. MapY4 .. Facing4 .. Player4VisTemp .. PlayerExtra1 .. PlayerExtra2 .. Player2Extra1 .. Player2Extra2 .. Player3Extra1 .. Player3Extra2 .. Player4Extra1 .. Player4Extra2 .. PlayerMapID .. PlayerID
 	FixAllPositions()
 end
 
@@ -14403,7 +22122,7 @@ function SendData(DataType, Socket)
 				if MapID2 == MapID2 then Player2Visibility = 1 end
 				if MapID2 == MapID3 then Player3Visibility = 1 end
 				if MapID2 == MapID4 then Player4Visibility = 1 end
-				else
+			else
 				Player1Visibility = 0
 				Player2Visibility = 0
 				Player3Visibility = 0
@@ -14440,7 +22159,7 @@ function SendData(DataType, Socket)
 			Player1Visibility = Player1Visibility .. Player2Visibility .. Player3Visibility .. Player4Visibility
 			CreatePackett("SPO2", Player1Visibility )
 		else
-		CreatePackett("SPOS", "100")
+			CreatePackett("SPOS", "100")
 		end
 		--Dummy packett
 	--	CreatePackett("DMMY", "1000")
@@ -14448,6 +22167,63 @@ function SendData(DataType, Socket)
 	elseif (DataType == "Request") then
 		CreatePackett("JOIN", "100")
 		Socket:send(Packett)
+	elseif (DataType == "Hide") then
+		CreatePackett("HIDE", "100")
+		Socket:send(Packett)
+	elseif (DataType == "POKE") then
+		CreatePackettSpecial("POKE",Socket)
+	elseif (DataType == "RPOK") then
+		local whiletempmax = 100000
+		EnemyPokemon[1] = ""
+		EnemyPokemon[2] = ""
+		EnemyPokemon[3] = ""
+		EnemyPokemon[4] = ""
+		EnemyPokemon[5] = ""
+		EnemyPokemon[6] = ""
+		CreatePackett("RPOK", "100")
+		Socket:send(Packett)
+		while (string.len(EnemyPokemon[6]) < 100 and whiletempmax > 0) do
+			ReceiveData(Socket)
+			ReceiveData(Socket)
+			ReceiveData(Socket)
+			ReceiveData(Socket)
+			ReceiveData(Socket)
+		whiletempmax = whiletempmax - 1
+		end
+	elseif (DataType == "RTRA") then
+		CreatePackett("RTRA", "100")
+		Socket:send(Packett)
+	elseif (DataType == "RBAT") then
+		CreatePackett("RBAT", "100")
+		Socket:send(Packett)
+	elseif (DataType == "STRA") then
+		CreatePackett("STRA", "100")
+		Socket:send(Packett)
+	elseif (DataType == "SBAT") then
+		CreatePackett("SBAT", "100")
+		Socket:send(Packett)
+	elseif (DataType == "DTRA") then
+		CreatePackett("DTRA", "100")
+		Socket:send(Packett)
+	elseif (DataType == "DBAT") then
+		CreatePackett("DBAT", "100")
+		Socket:send(Packett)
+	elseif (DataType == "CTRA") then
+		CreatePackett("CTRA", "100")
+		Socket:send(Packett)
+	elseif (DataType == "CBAT") then
+		CreatePackett("CBAT", "100")
+		Socket:send(Packett)
+	elseif (DataType == "TBUS") then
+		CreatePackett("TBUS", "100")
+		Socket:send(Packett)
+	elseif (DataType == "ROFF") then
+		CreatePackett("ROFF", "100")
+		Socket:send(Packett)
+	elseif (DataType == "TRAD") then
+		CreatePackettSpecial("TRAD")
+	elseif (DataType == "BATT") then
+		CreatePackettSpecial("BATT")
 	end
 end
 
@@ -14455,7 +22231,6 @@ end
 function ConnectNetwork()
 	--To prevent package overrunning, sending will be every 20 frames, unlike recieve, which is every frame
 	--Send timer
-	local SendTimer = ScriptTime % 4
 	--Receive timer
 	local ReceiveTimer = ScriptTime % 1
 	
@@ -14505,14 +22280,210 @@ function RandomizeNickname()
 	return res
 end
 
+function Interact()
+	local Keypress = emu:getKeys()
+	local TalkingDirX = 0
+	local TalkingDirY = 0
+	local ScriptAddressTemp = 0
+	local ScriptAddressTemp1 = 0
+	local TooBusyByte = emu:read8(50335644)
+	local AddressGet = ""
+		
+		--Hide n seek
+		if LockFromScript == 1 then
+			if Var8000[5] == 2 then
+		--		console:createBuffer("Hide n' Seek selected")
+				LockFromScript = 0
+				Loadscript(3)
+				Keypressholding = 1
+				Keypress = 1
+			
+			elseif Var8000[5] == 1 then
+		--		console:createBuffer("Hide n' Seek not selected")
+				LockFromScript = 0
+				Loadscript(3)
+				Keypressholding = 1
+				Keypress = 1
+			end
+		--Interaction Multi-choice
+		elseif LockFromScript == 2 then
+			if Var8000[1] ~= Var8000[14] then
+				if Var8000[1] == 1 then
+		--			console:createBuffer("Battle selected")
+					FixAddress()
+		--			LockFromScript = 4
+		--			Loadscript(4)
+					LockFromScript = 7
+					Loadscript(3)
+					Keypressholding = 1
+					Keypress = 1
+		--			SendData("RBAT", Player2)
+				
+				elseif Var8000[1] == 2 then
+		--			console:createBuffer("Trade selected")
+					FixAddress()
+					LockFromScript = 5
+					Loadscript(4)
+					Keypressholding = 1
+					Keypress = 1
+					SendData("RTRA", Player2)
+				
+				elseif Var8000[1] == 3 then
+		--			console:createBuffer("Card selected")
+					FixAddress()
+					LockFromScript = 6
+					Loadscript(3)
+					Keypressholding = 1
+					Keypress = 1
+				
+				elseif Var8000[1] ~= 0 then
+		--			console:createBuffer("Exit selected")
+					FixAddress()
+					LockFromScript = 0
+					Keypressholding = 1
+					Keypress = 1
+				end
+			end
+		end
+	if Keypress ~= 0 then
+		if Keypress == 1 or Keypress == 65 or Keypress == 129 or Keypress == 33 or Keypress == 17 then
+	--		console:createBuffer("Pressed A")
+	
+			--SCRIPTS. LOCK AND PREVENT SPAM PRESS. 
+			if LockFromScript == 0 and Keypressholding == 0 and TooBusyByte == 0 then
+				--HIDE N SEEK AT DESK IN ROOM
+				if MasterClient == "h" and ActualPlayerDirection == 3 and MapX == 9 and MapY == 9 and PlayerMapID == 100260 then
+				--Server config through bedroom drawer
+					--For temp ram to load up script in 145227776 - 08A80000
+					--8004 is the temp var to get yes or no
+					Loadscript(1)
+					LockFromScript = 1
+				end
+				--Interact with player 2
+				
+				if PlayerID ~= 2 and Player2ID ~= "None" then
+					TalkingDirX = PlayerMapX - MapX2
+					TalkingDirY = PlayerMapY - MapY2
+					if ActualPlayerDirection == 1 and TalkingDirX == 1 and TalkingDirY == 0 then
+				--		console:createBuffer("Player2 Left")
+						
+					elseif ActualPlayerDirection == 2 and TalkingDirX == -1 and TalkingDirY == 0 then
+				--		console:createBuffer("Player2 Right")
+					elseif ActualPlayerDirection == 3 and TalkingDirY == 1 and TalkingDirX == 0 then
+				--		console:createBuffer("Player2 Up")
+					elseif ActualPlayerDirection == 4 and TalkingDirY == -1 and TalkingDirX == 0 then
+				--		console:createBuffer("Player2 Down")
+					end
+					if (ActualPlayerDirection == 1 and TalkingDirX == 1 and TalkingDirY == 0) or (ActualPlayerDirection == 2 and TalkingDirX == -1 and TalkingDirY == 0) or (ActualPlayerDirection == 3 and TalkingDirX == 0 and TalkingDirY == 1) or (ActualPlayerDirection == 4 and TalkingDirX == 0 and TalkingDirY == -1) then
+					
+				--		console:createBuffer("Player2 Any direction")
+						emu:write16(Var8000Adr[1], 0) 
+						emu:write16(Var8000Adr[2], 0) 
+						emu:write16(Var8000Adr[14], 0)
+						BufferString = Player2ID
+						Loadscript(2)
+						LockFromScript = 2
+					end
+				end
+			end
+			Keypressholding = 1
+		elseif Keypress == 2 then
+			if LockFromScript == 4 and Keypressholding == 0 and Var8000[2] ~= 0 then
+				--Cancel battle request
+				Loadscript(15)
+				SendData("CBAT",Player2)
+				LockFromScript = 0
+			elseif LockFromScript == 5 and Keypressholding == 0 and Var8000[2] ~= 0 then
+				--Cancel trade request
+				Loadscript(16)
+					SendData("CTRA",Player2)
+				LockFromScript = 0
+			end
+			Keypressholding = 1
+		elseif Keypress == 4 then
+	--		GetPokemonTeam()
+	--		SetEnemyPokemonTeam()
+	--		console:createBuffer("Pressed Select")
+		elseif Keypress == 8 then
+	--		console:createBuffer("Pressed Start")
+		elseif Keypress == 16 then
+	--		console:createBuffer("Pressed Right")
+		elseif Keypress == 32 then
+	--		console:createBuffer("Pressed Left")
+		elseif Keypress == 64 then
+	--		console:createBuffer("Pressed Up")
+		elseif Keypress == 128 then
+	--		console:createBuffer("Pressed Down")
+		elseif Keypress == 256 then
+		--	if LockFromScript == 0 and Keypressholding == 0 then
+		--	console:createBuffer("Pressed R-Trigger")
+			--	ApplyMovement(0)
+		--		emu:write16(Var8001Adr, 0) 
+			--	BufferString = Player2ID
+		--		Loadscript(12)
+		--		LockFromScript = 5
+		--		local TestString = ReadBuffers(33692880, 4)
+		--		WriteBuffers(33692912, TestString, 4)
+			--	console:createBuffer("String: " .. TestString)
+			
+		--		SendData("RPOK",Player2)
+		--		if EnemyPokemon[6] ~= 0 then
+		--			SetEnemyPokemonTeam(0,1)
+		--		end
+				
+			--	LockFromScript = 8
+		--		SendMultiplayerPackets(0,256,Player2)
+		--	end
+		--	Keypressholding = 1
+		elseif Keypress == 512 then
+	--		console:createBuffer("Pressed L-Trigger")
+	--		Loadscript(22)
+		end
+	else
+		Keypressholding = 0
+	end
+end
 
 function mainLoop()
-	FFTimer = os.clock()
-	FFTimer = FFTimer - FFTimer2
+	FFTimer = os.clock() - FFTimer2
+	FFTimer = math.floor(FFTimer)
 	ScriptTime = ScriptTime + 1
+	SendTimer = ScriptTime % ScriptTimeFrame
+	
+	if FFTimer > FramesPS then
+		--This is our framerate
+		local ScriptTimeSpeed = ScriptTime - ScriptTimePrev
+		ScriptTimePrev = ScriptTime
+		
+		if ScriptTimeSpeed < 100 then
+			ScriptTimeFrame = 4
+		elseif ScriptTimeSpeed < 200 then
+			ScriptTimeFrame = 10
+		elseif ScriptTimeSpeed < 300 then
+			ScriptTimeFrame = 16
+		elseif ScriptTimeSpeed < 400 then
+			ScriptTimeFrame = 22
+		elseif ScriptTimeSpeed < 500 then
+			ScriptTimeFrame = 28
+		elseif ScriptTimeSpeed < 600 then
+			ScriptTimeFrame = 34
+		elseif ScriptTimeSpeed < 700 then
+			ScriptTimeFrame = 40
+		elseif ScriptTimeSpeed < 800 then
+			ScriptTimeFrame = 46
+		elseif ScriptTimeSpeed < 900 then
+			ScriptTimeFrame = 52
+		elseif ScriptTimeSpeed >= 900 then
+			ScriptTimeFrame = 60
+		end
+	end
+	
+	FramesPS = FFTimer
 	if initialized == 0 and EnableScript == true then
+		ROMCARD = emu.memory.cart0
 		initialized = 1
 		GetPosition()
+	--	Loadscript(0)
 		if Nickname == "" then Nickname = RandomizeNickname() console:createBuffer("Nickname is now " .. Nickname) end
 		if MasterClient == "a" then CreateNetwork() end
 	elseif EnableScript == true then
@@ -14520,10 +22491,6 @@ function mainLoop()
 			TempVar2 = ScriptTime % DebugTime2
 			local TempVarTimer = ScriptTime % DebugTime
 			if TempVarTimer == 0 then
-		--		console:createBuffer("Current Frame: " .. emu:currentFrame())
-		--		console:createBuffer("Current X: " .. MapX .. " Current Y: " .. MapY)
-		--		console:createBuffer("Master/Slave: " .. MasterClient .. " Nickname: " .. Nickname )
-		--		console:createBuffer("MapID1: " .. MapID .. " MapID2: " .. MapID2)
 			end
 			--Update once every frame
 			TempVarTimer = ScriptTime % DebugTime3
@@ -14535,6 +22502,131 @@ function mainLoop()
 			TempVarTimer = ScriptTime % DebugTime2
 			if TempVarTimer == 0 then
 				if MasterClient == "a" then CreateNetwork() end
+			end
+							--VARS--
+		if GameID == "BPRE" then
+			Startvaraddress = 33779896
+		elseif GameID == "BPGE" then
+			Startvaraddress = 33779896
+		end
+		Var8000Adr[1] = Startvaraddress
+		Var8000Adr[2] = Startvaraddress + 2
+		Var8000Adr[3] = Startvaraddress + 4
+		Var8000Adr[4] = Startvaraddress + 6
+		Var8000Adr[5] = Startvaraddress + 8
+		Var8000Adr[6] = Startvaraddress + 10
+		Var8000Adr[14] = Startvaraddress + 26
+		Var8000[1] = emu:read16(Var8000Adr[1])
+		Var8000[2] = emu:read16(Var8000Adr[2])
+		Var8000[3] = emu:read16(Var8000Adr[3])
+		Var8000[4] = emu:read16(Var8000Adr[4])
+		Var8000[5] = emu:read16(Var8000Adr[5])
+		Var8000[6] = emu:read16(Var8000Adr[6])
+		Var8000[14] = emu:read16(Var8000Adr[14])
+		Var8000[1] = tonumber(Var8000[1])
+		Var8000[2] = tonumber(Var8000[2])
+		Var8000[3] = tonumber(Var8000[3])
+		Var8000[4] = tonumber(Var8000[4])
+		Var8000[5] = tonumber(Var8000[5])
+		Var8000[6] = tonumber(Var8000[6])
+		Var8000[14] = tonumber(Var8000[14])
+			
+						--BATTLE/TRADE--
+			
+		--	if TempVar2 == 0 then console:createBuffer("OtherPlayerCanceled: " .. OtherPlayerHasCancelled) end
+			
+			--Wait until other player accepts battle
+			if LockFromScript == 4 then
+				if Var8000[2] ~= 0 then
+					if TextSpeedWait == 1 then
+						TextSpeedWait = 0
+						LockFromScript = 8
+						Loadscript(13)
+					elseif TextSpeedWait == 3 then
+						TextSpeedWait = 0
+						LockFromScript = 7
+						Loadscript(11)
+					elseif TextSpeedWait == 5 then
+						TextSpeedWait = 0
+						LockFromScript = 7
+						Loadscript(20)
+					end
+				end
+--				if SendTimer == 0 then SendData("RBAT") end
+				
+			--Wait until other player accepts trade
+			elseif LockFromScript == 5 then
+				if Var8000[2] ~= 0 then
+					if TextSpeedWait == 2 then
+						TextSpeedWait = 0
+						LockFromScript = 9
+						Loadscript(14)
+					elseif TextSpeedWait == 4 then
+						TextSpeedWait = 0
+						LockFromScript = 7
+						Loadscript(7)
+					elseif TextSpeedWait == 6 then
+						TextSpeedWait = 0
+						LockFromScript = 7
+						Loadscript(21)
+					end
+				end
+				
+			--Show card. Placeholder for now
+			elseif LockFromScript == 6 then
+				if Var8000[2] ~= 0 then
+		--			console:createBuffer("Var 8001: " .. Var8000[2])
+					LockFromScript = 0
+				--	if SendTimer == 0 then SendData("RTRA") end
+				end
+				
+			--Exit message
+			elseif LockFromScript == 7 then
+				if Var8000[2] ~= 0 then LockFromScript = 0 Keypressholding = 1 end
+			
+			--Battle script
+			elseif LockFromScript == 8 then
+			
+				Battlescript()
+			
+			--Trade script
+			elseif LockFromScript == 9 then
+			
+				Tradescript()
+			
+			
+			--Player 2 has requested to battle
+			elseif LockFromScript == 12 then
+		--	if Var8000[2] ~= 0 then console:createBuffer("Var8001: " .. Var8000[2]) end
+				if Var8000[2] == 2 then
+					if OtherPlayerHasCancelled == 0 then
+						SendData("RPOK", Player2)
+						SendData("SBAT", Player2)
+						LockFromScript = 8
+						Loadscript(13)
+					else
+						OtherPlayerHasCancelled = 0
+						LockFromScript = 7
+						Loadscript(18)
+					end
+				elseif Var8000[2] == 1 then LockFromScript = 0 SendData("DBAT", Player2) Keypressholding = 1 end
+				
+			--Player 2 has requested to trade
+			elseif LockFromScript == 13 then
+		--	if Var8000[2] ~= 0 then console:createBuffer("Var8001: " .. Var8000[2]) end
+				--If accept, then send that you accept
+				if Var8000[2] == 2 then
+					if OtherPlayerHasCancelled == 0 then
+						SendData("RPOK", Player2)
+						SendData("STRA", Player2)
+						LockFromScript = 9
+						Loadscript(14)
+					else
+						OtherPlayerHasCancelled = 0
+						LockFromScript = 7
+						Loadscript(19)
+					end
+				elseif Var8000[2] == 1 then LockFromScript = 0 SendData("DTRA", Player2) Keypressholding = 1 end
 			end
 	end
 end
@@ -14548,7 +22640,10 @@ callbacks:add("shutdown", shutdownGame)
 callbacks:add("frame", mainLoop)
 callbacks:add("frame", DrawChars)
 
-console:createBuffer("The lua script 'PositionPlayer.lua' has been loaded")
+
+callbacks:add("keysRead", Interact)
+
+console:createBuffer("The lua script 'GBA-PK_Server.lua' has been loaded")
 if not (emu == nil) then
 	FFTimer2 = os.clock()
     GetGameVersion()
