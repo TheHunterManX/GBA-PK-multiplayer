@@ -198,6 +198,7 @@ local Pokemon = {"","","","","",""}
 
 local EnemyPokemon = {"","","","","",""}
 
+local ConsoleForText
 local Keypressholding = 0
 local LockFromScript = 0
 local HideSeek = 0
@@ -250,7 +251,7 @@ function ClearAllVar()
 --Map ID
 	 MapAddress = 0
 	 MapAddress2 = 0
-	 PlayerID = 1
+--	 PlayerID = 1
 	 ScriptTime = 0
 	 initialized = 0
 
@@ -357,33 +358,56 @@ function GetGameVersion()
 	GameCode = emu:getGameCode()
 	if (GameCode == "AGB-BPRE") or (GameCode == "AGB-ZBDM")
 	then
-		console:createBuffer("Pokemon Firered detected. Script enabled.")
-		EnableScript = true
-		GameID = "BPRE"
-		elseif (GameCode == "AGB-BPGE")
-		then
-			console:createBuffer("Pokemon Leafgreen detected. Script enabled.")
+		local GameVersion = emu:read16(134217916)
+		if GameVersion == 26624 then
+			ConsoleForText:print("Pokemon Firered 1.0 detected. Script enabled.")
 			EnableScript = true
-			GameID = "BPGE"
-		elseif (GameCode == "AGB-BPEE")
+			GameID = "BPR1"
+		elseif GameVersion == 26369 then
+			ConsoleForText:print("Pokemon Firered 1.1 detected. Script enabled.")
+			EnableScript = true
+			GameID = "BPR2"
+		else
+			ConsoleForText:print("Unknown version of Pokemon Firered detected. Defaulting to 1.0. Script enabled.")
+			EnableScript = true
+			GameID = "BPR1"
+		end
+	elseif (GameCode == "AGB-BPGE")
 		then
-			console:createBuffer("Pokemon Emerald detected. Script disabled.")
+		local GameVersion = emu:read16(134217916)
+		if GameVersion == 33024 then
+			ConsoleForText:print("Pokemon Leafgreen 1.0 detected. Script enabled.")
+			EnableScript = true
+			GameID = "BPG1"
+		elseif GameVersion == 32769 then
+			ConsoleForText:print("Pokemon Leafgreen 1.1 detected. Script enabled.")
+			EnableScript = true
+			GameID = "BPG2"
+		else
+			ConsoleForText:print("Unknown version of Pokemon Leafgreen detected. Defaulting to 1.0. Script enabled.")
+			EnableScript = true
+			GameID = "BPG1"
+		end
+	elseif (GameCode == "AGB-BPEE")
+		then
+			ConsoleForText:print("Pokemon Emerald detected. Script disabled.")
 			EnableScript = true
 			GameID = "BPEE"
-		elseif (GameCode == "AGB-AXVE")
+	elseif (GameCode == "AGB-AXVE")
 		then
-			console:createBuffer("Pokemon Ruby detected. Script disabled.")
+			ConsoleForText:print("Pokemon Ruby detected. Script disabled.")
 			EnableScript = true
 			GameID = "AXVE"
-		elseif (GameCode == "AGB-AXPE")
+	elseif (GameCode == "AGB-AXPE")
 		then
-			console:createBuffer("Pokemon Sapphire detected. Script disabled.")
+			ConsoleForText:print("Pokemon Sapphire detected. Script disabled.")
 			EnableScript = true
 			GameID = "AXPE"
-		else
-		console:createBuffer("Unknown game. Script disabled.")
+	else
+		ConsoleForText:print("Unknown game. Script disabled.")
 		EnableScript = false
 	end
+	ConsoleForText:moveCursor(0,2)
 end
 
 --To fit everything in 1 file, I must unfortunately clog this file with a lot of sprite data. Luckily, this does not lag the game. It is just hard to read.
@@ -17533,10 +17557,10 @@ function GetPokemonTeam()
 	local PokemonTeamAddress = 0
 	local PokemonTeamADRTEMP = 0
 	local ReadTemp = ""
-		if GameID == "BPRE" then
+		if GameID == "BPR1" or GameID == "BPR2" then
 			--Addresses for Firered
 			PokemonTeamAddress = 33702532
-		elseif GameID == "BPGE" then
+		elseif GameID == "BPG1" or GameID == "BPG2" then
 			--Addresses for Leafgreen
 			PokemonTeamAddress = 33702532
 		end
@@ -17552,7 +17576,7 @@ function GetPokemonTeam()
 				end
 			end
 		end
-	--	console:createBuffer("EnemyPokemon 1 data: " .. Pokemon[2])
+	--	ConsoleForText:print("EnemyPokemon 1 data: " .. Pokemon[2])
 end
 function SetEnemyPokemonTeam(EnemyPokemonNo, EnemyPokemonPos)
 	local PokemonTeamAddress = 0
@@ -17560,10 +17584,10 @@ function SetEnemyPokemonTeam(EnemyPokemonNo, EnemyPokemonPos)
 	local ReadTemp = ""
 	local String1 = 0
 	local String2 = 0
-		if GameID == "BPRE" then
+		if GameID == "BPR1" or GameID == "BPR2" then
 			--Addresses for Firered
 			PokemonTeamAddress = 33701932
-		elseif GameID == "BPGE" then
+		elseif GameID == "BPG1" or GameID == "BPG2" then
 			--Addresses for Leafgreen
 			PokemonTeamAddress = 33701932
 		end
@@ -17600,10 +17624,14 @@ end
 
 function FixAddress()
 	local MultichoiceAdr = 0
-		if GameID == "BPRE" then
+		if GameID == "BPR1" then
 			MultichoiceAdr = 138282176
-		elseif GameID == "BPGE" then
-			MultichoiceAdr = 138282176
+		elseif GameID == "BPR2" then
+			MultichoiceAdr = 138282288
+		elseif GameID == "BPG1" then
+			MultichoiceAdr = 138281724
+		elseif GameID == "BPG2" then
+			MultichoiceAdr = 138281836
 		end
 	if PrevExtraAdr ~= 0 then
 		emu:write32(MultichoiceAdr, PrevExtraAdr)
@@ -17622,11 +17650,18 @@ function Loadscript(ScriptNo)
 	local TextToNum = 0
 	local NickNameNum
 	local Buffer = {0,0,0,0}
+	local Buffer1 = 33692880
+	local Buffer2 = 33692912
+	local Buffer3 = 33692932
 	local MultichoiceAdr = 0
-		if GameID == "BPRE" then
+		if GameID == "BPR1" then
 			MultichoiceAdr = 138282176
-		elseif GameID == "BPGE" then
-			MultichoiceAdr = 138282176
+		elseif GameID == "BPR2" then
+			MultichoiceAdr = 138282288
+		elseif GameID == "BPG1" then
+			MultichoiceAdr = 138281724
+		elseif GameID == "BPG2" then
+			MultichoiceAdr = 138281836
 		end
 	
 			--Convert 4-byte buffer to readable bytes in case its needed
@@ -18773,6 +18808,26 @@ function Loadscript(ScriptNo)
 				ScriptAddressTemp1 = 40656234
 				ROMCARD:write32(ScriptAddressTemp, ScriptAddressTemp1) 
 				LoadScriptIntoMemory()
+			--trade names script.
+			elseif ScriptNo == 23 then
+				--Other trainer aka other player
+				ScriptAddressTemp = Buffer1
+				ScriptAddressTemp1 = Buffer[1]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = Buffer1 + 1
+				ScriptAddressTemp1 = Buffer[2]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = Buffer1 + 2
+				ScriptAddressTemp1 = Buffer[3]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = Buffer1 + 3
+				ScriptAddressTemp1 = Buffer[4]
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				ScriptAddressTemp = Buffer1 + 4
+				ScriptAddressTemp1 = 255
+				emu:write8(ScriptAddressTemp, ScriptAddressTemp1)
+				--Their pokemon
+				WriteBuffers(Buffer3, EnemyTradeVars[6], 5)
 			end
 			
 end
@@ -18883,12 +18938,12 @@ function SendMultiplayerPackets(Offset, size, Socket)
 				PacketAmount = PacketAmount + 1
 				ModifiedLoop = 20
 				ModifiedLoop2 = 0
-			--	console:createBuffer("Packet number: " .. PacketAmount)
+			--	ConsoleForText:print("Packet number: " .. PacketAmount)
 			elseif ModifiedSize <= 20 and ModifiedLoop == 0 then
 				PacketAmount = PacketAmount + 1
 				ModifiedLoop = ModifiedSize
 				ModifiedLoop2 = 0
-			--	console:createBuffer("Last packet. Number: " .. PacketAmount)
+			--	ConsoleForText:print("Last packet. Number: " .. PacketAmount)
 			end
 			if ModifiedLoop ~= 0 then
 				ModifiedLoop2 = ModifiedLoop2 + 1
@@ -18900,7 +18955,7 @@ function SendMultiplayerPackets(Offset, size, Socket)
 				end
 				if ModifiedLoop == 1 then
 					Socket:send(Packet)
-			--		console:createBuffer("Packet sent! Packet " .. Packet .. " end. Amount of loops: " .. ModifiedLoop2 .. " " .. Offset)
+			--		ConsoleForText:print("Packet sent! Packet " .. Packet .. " end. Amount of loops: " .. ModifiedLoop2 .. " " .. Offset)
 					Packet = ""
 					ModifiedLoop = 0
 				else
@@ -18923,7 +18978,7 @@ function ReceiveMultiplayerPackets(size, Socket)
 	local SizeMod = 0
 	--Using RAM 0263D000-0263DDFF for received data, as it seems free. If not, will modify later
 	local MultiplayerPacketSpace = 40095744
-	--console:createBuffer("TEST 1")
+	--ConsoleForText:print("TEST 1")
 	for i = 1, size do
 		--Inverse of i, size remaining. 1 = last. Also size represents hex bytes, which goes up to 255 in decimal
 		ModifiedSize = size - i + 1
@@ -18932,14 +18987,14 @@ function ReceiveMultiplayerPackets(size, Socket)
 			Packet = Socket:receive(60)
 			ModifiedLoop = 20
 			ModifiedLoop2 = 0
-	--		console:createBuffer("Packet number: " .. PacketAmount)
+	--		ConsoleForText:print("Packet number: " .. PacketAmount)
 		elseif ModifiedSize <= 20 and ModifiedLoop == 0 then
 			PacketAmount = PacketAmount + 1
 			SizeMod = ModifiedSize * 3
 			Packet = Socket:receive(SizeMod)
 			ModifiedLoop = ModifiedSize
 			ModifiedLoop2 = 0
-	--		console:createBuffer("Last packet. Number: " .. PacketAmount)
+	--		ConsoleForText:print("Last packet. Number: " .. PacketAmount)
 		end
 		if ModifiedLoop ~= 0 then
 			ModifiedLoop3 = ModifiedLoop2 * 3 + 1
@@ -18949,10 +19004,10 @@ function ReceiveMultiplayerPackets(size, Socket)
 			ModifiedRead = tonumber(ModifiedRead)
 			ModifiedRead = ModifiedRead - 100
 			emu:write8(MultiplayerPacketSpace, ModifiedRead)
-	--		console:createBuffer("Num: " .. ModifiedRead)
-	--		console:createBuffer("NUM: " .. ModifiedRead)
+	--		ConsoleForText:print("Num: " .. ModifiedRead)
+	--		ConsoleForText:print("NUM: " .. ModifiedRead)
 			if ModifiedLoop == 1 then
-		--		console:createBuffer("Packet " .. PacketAmount .. " end. Amount of loops: " .. ModifiedLoop2 .. " " .. MultiplayerPacketSpace)
+		--		ConsoleForText:print("Packet " .. PacketAmount .. " end. Amount of loops: " .. ModifiedLoop2 .. " " .. MultiplayerPacketSpace)
 				Packet = ""
 				ModifiedLoop = 0
 			else
@@ -19065,7 +19120,7 @@ function BattlescriptClassic()
 			if BattleVars[7] == 0 then
 				BattleVars[7] = 1
 			--	BattleVars[13] = ReadBuffers()
-			--	console:createBuffer("First")
+			--	ConsoleForText:print("First")
 			-- SEND DATA
 				CreatePackettSpecial("BAT2", Player2)
 				
@@ -19116,7 +19171,7 @@ function BattlescriptClassic()
 				BattleVars[7] = 1
 			--	BattleVars[13] = ReadBuffers()
 			-- RECEIVEDATA
-			--	console:createBuffer("Second")
+			--	ConsoleForText:print("Second")
 			elseif BattleVars[7] == 1 and EnemyBattleVars[7] == 1 then
 				if BattleVars[12] >= 32 then
 					BattleVars[12] = BattleVars[12] - 32
@@ -19191,9 +19246,10 @@ function Tradescript()
 	--Buffer 1 is enemy pokemon, 2 is our pokemon
 	local Buffer1 = 33692880
 	local Buffer2 = 33692912
+	local Buffer3 = 33692932
 
 
---	if TempVar2 == 0 then console:createBuffer("1: " .. TradeVars[1] .. " 8001: " .. Var8000[2] .. " OtherPlayerHasCancelled: " .. OtherPlayerHasCancelled .. " EnemyTradeVars[1]: " .. EnemyTradeVars[1]) end
+--	if TempVar2 == 0 then ConsoleForText:print("1: " .. TradeVars[1] .. " 8001: " .. Var8000[2] .. " OtherPlayerHasCancelled: " .. OtherPlayerHasCancelled .. " EnemyTradeVars[1]: " .. EnemyTradeVars[1]) end
 
 	--Text is finished before trade
 	if Var8000[2] ~= 0 and TradeVars[1] == 0 then
@@ -19276,19 +19332,21 @@ function Tradescript()
 		--If you accept and there is no denial
 		elseif Var8000[2] == 2 and OtherPlayerHasCancelled == 0 then
 			--If other player isn't finished selecting, wait. Otherwise, go straight into trade.
-			if EnemyTradeVars[1] == 4 then
+			if EnemyTradeVars[1] == 4 and EnemyTradeVars[2] == 2 then
 				TradeVars[1] = 5
+				TradeVars[2] = 2
 				local TeamPos = EnemyTradeVars[3] + 1
 				SetEnemyPokemonTeam(TeamPos, 1)
 				Loadscript(17)
 			else
 				Loadscript(4)
 				TradeVars[1] = 4
+				TradeVars[2] = 0
 			end
 	end
 	elseif TradeVars[1] == 4 then
 		--Wait for other player
-		if Var8000[2] ~= 0 then TradeVars[2] = 1 end
+		if Var8000[2] ~= 0 then TradeVars[2] = 2 end
 		--If they cancel
 		if Var8000[2] ~= 0 and OtherPlayerHasCancelled ~= 0 then
 			OtherPlayerHasCancelled = 0
@@ -19299,16 +19357,21 @@ function Tradescript()
 			TradeVars[3] = 0
 			
 		--If other player has finished selecting
-		elseif Var8000[2] ~= 0 and ((EnemyTradeVars[2] == 1 and EnemyTradeVars[1] == 4) or EnemyTradeVars[1] == 5) then
-			TradeVars[2] = 0
+		elseif Var8000[2] ~= 0 and (EnemyTradeVars[2] == 2 or EnemyTradeVars[1] == 5) then
+			TradeVars[2] = 2
 			TradeVars[1] = 5
 			local TeamPos = EnemyTradeVars[3] + 1
 			SetEnemyPokemonTeam(TeamPos, 1)
 			Loadscript(17)
+		else
+	--		console:log("VARS: " .. Var8000[2] .. " " .. EnemyTradeVars[2] .. " " .. EnemyTradeVars[1])
 		end
 	elseif TradeVars[1] == 5 then
+		--Text for trade
+		if Var8000[2] == 0 then
+			Loadscript(23)
 		--After trade
-		if Var8000[2] ~= 0 then 
+		elseif Var8000[2] ~= 0 then
 			TradeVars[1] = 0
 			TradeVars[2] = 0
 			TradeVars[3] = 0
@@ -19401,11 +19464,11 @@ end
 function GetPlayerCamera(ResetCamera)
 	local u32 PlayerMapXMoveAddress = 0
 	local u32 PlayerMapYMoveAddress = 0
-		if GameID == "BPRE" then
+		if GameID == "BPR1" or GameID == "BPR2" then
 			--Addresses for Firered
 			PlayerMapXMoveAddress = 33687132
 			PlayerMapYMoveAddress = 33687134
-		elseif GameID == "BPGE" then
+		elseif GameID == "BPG1" or GameID == "BPG2"  then
 			--Addresses for Leafgreen
 			PlayerMapXMoveAddress = 33687132
 			PlayerMapYMoveAddress = 33687134
@@ -19491,7 +19554,7 @@ function HidePlayers()
 				PlayerDirectionPrev = 0
 				if ActualPlayerDirectionPrev ~= 0 then
 					if PlayerNewMap ~= 0 then
-				--		console:createBuffer("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
+				--		ConsoleForText:print("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
 						--Up
 						if ActualPlayerDirectionPrev == 1 then
 							NewMapNewX = -1
@@ -19508,17 +19571,17 @@ function HidePlayers()
 					end
 					ActualPlayerDirectionPrev = 0
 				end
-		--		if TempVar2 == 0 then console:createBuffer("Player 2 and player 1 same map") end
+		--		if TempVar2 == 0 then ConsoleForText:print("Player 2 and player 1 same map") end
 			elseif (PlayerMapID == NewMapConnectPrev and NewMapConnect == 1) or (PlayerPrevMap == MapID and PlayerConnectionMap == 1) then
 				
 						
-					--	if TempVar2 == 0 then console:createBuffer("Test 2") end
+					--	if TempVar2 == 0 then ConsoleForText:print("Test 2") end
 						if (PlayerMapID == NewMapConnectPrev and PlayerDirectionPrev ~= 0 and NewMapConnect == 1) then MAXX = MapXPrev CURRX = MapStartX MAXY = MapYPrev CURRY = MapStartY
 						else MAXX = PlayerMAXX CURRX = PlayerCURRX MAXY = PlayerMAXY CURRY = PlayerCURRY
 						end
 						Player1Vis = 1
 						
-				--		if TempVar2 == 0 then console:createBuffer("VARS: " .. PlayerDirectionPrev .. " " .. MAXY .. " " .. CURRY) end
+				--		if TempVar2 == 0 then ConsoleForText:print("VARS: " .. PlayerDirectionPrev .. " " .. MAXY .. " " .. CURRY) end
 											--Down
 						if PlayerDirectionPrev == 4 then
 							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
@@ -19553,7 +19616,7 @@ function HidePlayers()
 							end
 						end
 
-				--		if TempVar2 == 0 then console:createBuffer("Test 3") end
+				--		if TempVar2 == 0 then ConsoleForText:print("Test 3") end
 					
 					--IF PLAYER UPDATES MAP
 					
@@ -19575,7 +19638,7 @@ function HidePlayers()
 						end
 					--Right (P2 LEFT)
 					elseif ActualPlayerDirectionPrev == 2 then
-				--			console:createBuffer("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
+				--			ConsoleForText:print("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
 							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
 							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
 							end
@@ -19584,7 +19647,7 @@ function HidePlayers()
 						end
 					--Left (P2 RIGHT)
 					elseif ActualPlayerDirectionPrev == 1 then
-				--			console:createBuffer("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
+				--			ConsoleForText:print("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
 							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
 							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
 							end
@@ -19592,7 +19655,7 @@ function HidePlayers()
 							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16 +16
 						end
 					end
-			--			if TempVar2 == 0 then console:createBuffer("Test 4") end
+			--			if TempVar2 == 0 then ConsoleForText:print("Test 4") end
 			else
 				Player1Vis = 0
 			end
@@ -19611,7 +19674,7 @@ function HidePlayers()
 				Player2DirectionPrev = 0
 				if ActualPlayerDirectionPrev ~= 0 then
 					if PlayerNewMap ~= 0 then
-				--		console:createBuffer("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
+				--		ConsoleForText:print("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
 						--Up
 						if ActualPlayerDirectionPrev == 1 then
 							NewMapNewX = -1
@@ -19628,17 +19691,17 @@ function HidePlayers()
 					end
 					ActualPlayerDirectionPrev = 0
 				end
-			--	if TempVar2 == 0 then console:createBuffer("Player 2 and player 1 same map") end
-			--			if TempVar2 == 0 then console:createBuffer("TEST1") end
+			--	if TempVar2 == 0 then ConsoleForText:print("Player 2 and player 1 same map") end
+			--			if TempVar2 == 0 then ConsoleForText:print("TEST1") end
 			elseif (PlayerMapID == NewMapConnect2Prev and NewMapConnect2 == 1) or (PlayerPrevMap == MapID2 and PlayerConnectionMap == 1) then
 					Player2Vis = 1
 											--Down
-				--		if TempVar2 == 0 then console:createBuffer("TEST2") end
+				--		if TempVar2 == 0 then ConsoleForText:print("TEST2") end
 						if (PlayerMapID == NewMapConnect2Prev and Player2DirectionPrev ~= 0 and NewMapConnect2 == 1) then MAXX = MapX2Prev CURRX = MapStartX2 MAXY = MapY2Prev CURRY = MapStartY2
 						else MAXX = PlayerMAXX CURRX = PlayerCURRX MAXY = PlayerMAXY CURRY = PlayerCURRY
 						end
-					--	if TempVar2 == 0 then console:createBuffer("TEST3") end
-					--	if TempVar2 == 0 then console:createBuffer("MAXY: " .. MAXY .. " CURRY: " .. CURRY .. " Dir: " .. Player2DirectionPrev) end
+					--	if TempVar2 == 0 then ConsoleForText:print("TEST3") end
+					--	if TempVar2 == 0 then ConsoleForText:print("MAXY: " .. MAXY .. " CURRY: " .. CURRY .. " Dir: " .. Player2DirectionPrev) end
 						if Player2DirectionPrev == 4 then
 							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
 							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
@@ -19664,7 +19727,7 @@ function HidePlayers()
 							end
 						--Left
 						elseif Player2DirectionPrev == 2 then
-					--		console:createBuffer("P2 LEFT")
+					--		ConsoleForText:print("P2 LEFT")
 							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
 							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
 							end
@@ -19694,7 +19757,7 @@ function HidePlayers()
 						end
 					--Right (P2 LEFT)
 					elseif ActualPlayerDirectionPrev == 2 then
-				--			console:createBuffer("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
+				--			ConsoleForText:print("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
 							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
 							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
 							end
@@ -19703,7 +19766,7 @@ function HidePlayers()
 						end
 					--Left (P2 RIGHT)
 					elseif ActualPlayerDirectionPrev == 1 then
-					--		console:createBuffer("P1 LEFT")
+					--		ConsoleForText:print("P1 LEFT")
 							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
 							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
 							end
@@ -19712,7 +19775,7 @@ function HidePlayers()
 						end
 					end
 			else
-		--		if TempVar2 == 0 then console:createBuffer("PlayerMapID" .. PlayerMapID .. "NewMapConnect2Prev: " .. NewMapConnect2Prev .. " " .. NewMapConnect2) end
+		--		if TempVar2 == 0 then ConsoleForText:print("PlayerMapID" .. PlayerMapID .. "NewMapConnect2Prev: " .. NewMapConnect2Prev .. " " .. NewMapConnect2) end
 				Player2Vis = 0
 			end
 		end
@@ -19734,7 +19797,7 @@ function GetPosition()
 	local u32 NewMapXAddress = 0
 	local u32 NewMapYAddress = 0
 	local Bike = 0
-	if GameID == "BPRE" then
+	if GameID == "BPR1" or GameID == "BPR2" then
 		--Addresses for Firered
 		PlayerXAddress = 33779272
 		PlayerYAddress = 33779274
@@ -19745,7 +19808,7 @@ function GetPosition()
 		BikeAddress = 33687112
 		PrevMapIDAddress = 33813418
 		ConnectionTypeAddress = 33785351
-	elseif GameID == "BPGE" then
+	elseif GameID == "BPG1" or GameID == "BPG2" then
 		--Addresses for Leafgreen
 		PlayerXAddress = 33779272
 		PlayerYAddress = 33779274
@@ -19769,7 +19832,7 @@ function GetPosition()
 		TempMapData = TempMapData + 100000
 		if TempMapData ~= PlayerMapID then
 				GetPlayerCamera(1)
-			--console:createBuffer("New map detected! Reloading sprites...")
+			--ConsoleForText:print("New map detected! Reloading sprites...")
 			--Starts at 100733010, each number will add it by 256 ex. 1 = 100733266
 			--HandleSprites()
 		else
@@ -19793,7 +19856,7 @@ function GetPosition()
 		if MapID ~= PlayerMapID then
 			MapXPrev = tonumber(NewMapX)
 			MapYPrev = tonumber(NewMapY)
-	--		console:createBuffer("MAPX: " .. MapX .. " PlayerMapX: " .. PlayerMapX)
+	--		ConsoleForText:print("MAPX: " .. MapX .. " PlayerMapX: " .. PlayerMapX)
 		end
 		NewMapX = emu:read16(NewMapXAddress)
 		NewMapY = emu:read16(NewMapYAddress)
@@ -19801,17 +19864,17 @@ function GetPosition()
 		if MapX > 99 then MapX = 99 end
 		MapY = emu:read16(PlayerYAddress)
 		if MapY > 99 then MapY = 99 end
-	--	if TempVar2 == 0 then console:createBuffer("BIKE: " .. Bike) end
+	--	if TempVar2 == 0 then ConsoleForText:print("BIKE: " .. Bike) end
 		--Male Firered Sprite from 1.0, 1.1, and leafgreen
 		if ((Bike == 160 or Bike == 272) or (Bike == 128 or Bike == 240)) then
 			PlayerExtra2 = 0
 			Bike = 0
-		--	if TempVar2 == 0 then console:createBuffer("Male on Foot") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Male on Foot") end
 		--Male Firered Biking Sprite
 		elseif (Bike == 320 or Bike == 432 or Bike == 288 or Bike == 400) then
 			PlayerExtra2 = 0
 			Bike = 1
-		--	if TempVar2 == 0 then console:createBuffer("Male on Bike") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Male on Bike") end
 		--Male Firered Surfing Sprite
 		elseif (Bike == 624 or Bike == 736 or Bike == 592 or Bike == 704) then
 			PlayerExtra2 = 0
@@ -19820,7 +19883,7 @@ function GetPosition()
 		elseif ((Bike == 392 or Bike == 504) or (Bike == 360 or Bike == 472)) then
 			PlayerExtra2 = 1
 			Bike = 0
-		--	if TempVar2 == 0 then console:createBuffer("Female on Foot") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Female on Foot") end
 		--Female Biking sprite
 		elseif ((Bike == 552 or Bike == 664) or (Bike == 520 or Bike == 632)) then
 			PlayerExtra2 = 1
@@ -19831,7 +19894,7 @@ function GetPosition()
 			Bike = 2
 		else
 		--If in bag when connecting will automatically be firered male
-		--	if TempVar2 == 0 then console:createBuffer("Bag/Unknown") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Bag/Unknown") end
 		end
 		Facing = tonumber(PlayerFacing)
 		if Bike == 2 then
@@ -19903,7 +19966,7 @@ function GetPosition()
 		--	if Facing == 255 then PlayerExtra1 = 0 end
 		end
 		ActualPlayerDirection = PlayerDirection
-	--	if TempVar2 == 0 then console:createBuffer("MapID: " .. MapID .. "PlayerMapID" .. PlayerMapID) end
+	--	if TempVar2 == 0 then ConsoleForText:print("MapID: " .. MapID .. "PlayerMapID" .. PlayerMapID) end
 		if PlayerNewMap ~= 0 then
 			if PlayerDirectionPrev == 1 then
 			MapStartX = tonumber(NewMapX)
@@ -19928,13 +19991,13 @@ function GetPosition()
 			end
 		end
 		if MapID ~= PlayerMapID then
-	--	console:createBuffer("NEW MAP!")
+	--	ConsoleForText:print("NEW MAP!")
 			PlayerDirectionPrev = PlayerDirection
 			ActualPlayerDirectionPrev = ActualPlayerDirection
 			
 			MapStartX = tonumber(NewMapX)
 			MapStartY = tonumber(NewMapY)
-	--		console:createBuffer("MAPX: " .. MapX)
+	--		ConsoleForText:print("MAPX: " .. MapX)
 			PlayerNewMap = 1
 			MapID = tonumber(PlayerMapID)
 		end
@@ -19963,12 +20026,12 @@ function GetPosition()
 		if ((Bike == 160 or Bike == 272) or (Bike == 128 or Bike == 240)) then
 			Player2Extra2 = 0
 			Bike = 0
-		--	if TempVar2 == 0 then console:createBuffer("Male on Foot") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Male on Foot") end
 		--Male Firered Biking Sprite
 		elseif (Bike == 320 or Bike == 432 or Bike == 288 or Bike == 400) then
 			Player2Extra2 = 0
 			Bike = 1
-		--	if TempVar2 == 0 then console:createBuffer("Male on Bike") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Male on Bike") end
 		--Male Firered Surfing Sprite
 		elseif (Bike == 624 or Bike == 736 or Bike == 592 or Bike == 704) then
 			Player2Extra2 = 0
@@ -19977,19 +20040,19 @@ function GetPosition()
 		elseif ((Bike == 392 or Bike == 504) or (Bike == 360 or Bike == 472)) then
 			Player2Extra2 = 1
 			Bike = 0
-		--	if TempVar2 == 0 then console:createBuffer("Female on Foot") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Female on Foot") end
 		--Female Biking sprite
 		elseif ((Bike == 552 or Bike == 664) or (Bike == 520 or Bike == 632)) then
 			Player2Extra2 = 1
 			Bike = 1
-		--	if TempVar2 == 0 then console:createBuffer("Female on Bike") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Female on Bike") end
 		--Female Firered Surfing Sprite
 		elseif (Bike == 720 or Bike == 832 or Bike == 688 or Bike == 800) then
 			Player2Extra2 = 1
 			Bike = 2
 		else
 		--If in bag when connecting will automatically be firered male
-		--	if TempVar2 == 0 then console:createBuffer("Bag/Unknown") end
+		--	if TempVar2 == 0 then ConsoleForText:print("Bag/Unknown") end
 		end
 		if Bike == 2 then
 			--Facing
@@ -20060,7 +20123,7 @@ function GetPosition()
 		--	if Facing2 == 255 then Player2Extra1 = 0 end
 		end
 		ActualPlayerDirection = Player2Direction
-	--	if TempVar2 == 0 then console:createBuffer("MapID: " .. MapID .. "PlayerMapID" .. PlayerMapID) end
+	--	if TempVar2 == 0 then ConsoleForText:print("MapID: " .. MapID .. "PlayerMapID" .. PlayerMapID) end
 		if PlayerNewMap ~= 0 then
 			if Player2DirectionPrev == 1 then
 			MapStartX2 = tonumber(NewMapX2)
@@ -20104,13 +20167,13 @@ function NoPlayersIfScreen()
 	local u32 ScreenDataAddress1 = 0
 	local u32 ScreenDataAddress2 = 0
 	local u32 ScreenDataAddress3 = 0
-	if GameID == "BPRE" then
+	if GameID == "BPR1" or GameID == "BPR2" then
 		--Addresses for Firered
 		ScreenDataAddress1 = 33686722
 		ScreenDataAddress2 = 33686723
 		--For intro
 		ScreenDataAddress3 = 33686716
-	elseif GameID == "BPGE" then
+	elseif GameID == "BPG1" or GameID == "BPG2" then
 		--Addresses for Leafgreen
 		ScreenDataAddress1 = 33686722
 		ScreenDataAddress2 = 33686723
@@ -20121,7 +20184,7 @@ function NoPlayersIfScreen()
 		ScreenData2 = emu:read8(ScreenDataAddress2)
 		ScreenData3 = emu:read8(ScreenDataAddress3)
 		
-	--	if TempVar2 == 0 then console:createBuffer("ScreenData: " .. ScreenData1 .. " " .. ScreenData2 .. " " .. ScreenData3) end
+	--	if TempVar2 == 0 then ConsoleForText:print("ScreenData: " .. ScreenData1 .. " " .. ScreenData2 .. " " .. ScreenData3) end
 		--If screen data are these then hide players
 		if ScreenData3 ~= 80 or (ScreenData1 > 1 and ScreenData1 < 28) or ScreenData2 == 18 or ScreenData2 == 27 then
 			ScreenData = 0
@@ -20238,13 +20301,13 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 			PlayerAnimationFrame = PlayerAnimationFrame + 1
 			
 		--	if AnimateID ~= 255 then
-		--	createBuffer("Max frame: " .. PlayerAnimationFrameMax .. "Current frame: " .. PlayerAnimationFrame)
+		--	log("Max frame: " .. PlayerAnimationFrameMax .. "Current frame: " .. PlayerAnimationFrame)
 		--	end
 			
 			--Animate left movement
 			if AnimatePlayerMoveX < 0 then
 		
-	--	if AnimateID < 250 then console:createBuffer("Extra: " .. PlayerExtra .. "  " .. AnimateID) end
+	--	if AnimateID < 250 then ConsoleForText:print("Extra: " .. PlayerExtra .. "  " .. AnimateID) end
 				
 				--Walk
 				if AnimateID == 3 then
@@ -20265,7 +20328,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 				elseif AnimateID == 6 then
 					PlayerAnimationFrameMax = 4
 					NewMapPosX = NewMapPosX - 4
-				--	console:createBuffer("Frame: " .. PlayerAnimationFrame)
+				--	ConsoleForText:print("Frame: " .. PlayerAnimationFrame)
 					if PlayerAnimationFrame == 3 then
 						if PlayerAnimationFrame2 == 0 then
 						createChars(Charpic,20,SpriteNumber)
@@ -20315,7 +20378,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 						createChars(Charpic,1,SpriteNumber)
 					end
 				elseif AnimateID == 14 then
-				--	console:createBuffer("Running")
+				--	ConsoleForText:print("Running")
 					PlayerAnimationFrameMax = 4
 					NewMapPosX = NewMapPosX + 4
 					if PlayerAnimationFrame == 3 then
@@ -20328,7 +20391,7 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 						createChars(Charpic,19,SpriteNumber)
 					end
 				elseif AnimateID == 15 then
-				--	console:createBuffer("Bike")
+				--	ConsoleForText:print("Bike")
 					PlayerAnimationFrameMax = 4
 					NewMapPosX = NewMapPosX + 4
 					if PlayerAnimationFrame > 2 and PlayerAnimationFrame <= 4 then
@@ -20786,22 +20849,22 @@ function HandleSprites()
 			PlayerDirectionPrev = PlayerDirection
 			if PlayerDirectionPrev ~= 0 then
 				if PlayerDirectionPrev == 1 then
-			--		console:createBuffer("Left" .. Player2Extra1)
+			--		ConsoleForText:print("Left" .. Player2Extra1)
 					MapStartX = MapStartX + 1
 				--	MapX2 = MapX2 + 1
 				--Down
 				elseif PlayerDirectionPrev == 2 then
-			--		console:createBuffer("Right" .. Player2Extra1)
+			--		ConsoleForText:print("Right" .. Player2Extra1)
 					MapStartX = MapStartX - 1
 				--	MapX2 = MapX2 - 1
 				--Left
 				elseif PlayerDirectionPrev == 3 then
-			--		console:createBuffer("P2 Up")
+			--		ConsoleForText:print("P2 Up")
 					MapStartY = MapStartY + 1
 				--	MapY2 = MapY2 + 1
 				--Right
 				elseif PlayerDirectionPrev == 4 then
-			--		console:createBuffer("P2 Down")
+			--		ConsoleForText:print("P2 Down")
 					MapStartY = MapStartY - 1
 			--		MapY2 = MapY2 - 1
 				end
@@ -20817,7 +20880,7 @@ function HandleSprites()
 			MapX2 = MapStartX2
 			MapY2 = MapStartY2
 		end
-		--if TempVar2 == 0 then console:createBuffer("PlayerExtra2: " .. Player2Extra2) end
+		--if TempVar2 == 0 then ConsoleForText:print("PlayerExtra2: " .. Player2Extra2) end
 		--Facing down
 		if Player2Extra1 == 1 then createChars(1,3,Player2Extra2) Player2Direction = 4 Facing2 = 0 AnimatePlayerMovement(2, 251)
 		
@@ -20953,22 +21016,22 @@ function HandleSprites()
 			Player2DirectionPrev = Player2Direction
 			if Player2DirectionPrev ~= 0 then
 				if Player2Direction == 1 then
-			--		console:createBuffer("Left" .. Player2Extra1)
+			--		ConsoleForText:print("Left" .. Player2Extra1)
 					MapStartX2 = MapStartX2 + 1
 				--	MapX2 = MapX2 + 1
 				--Down
 				elseif Player2Direction == 2 then
-			--		console:createBuffer("Right" .. Player2Extra1)
+			--		ConsoleForText:print("Right" .. Player2Extra1)
 					MapStartX2 = MapStartX2 - 1
 				--	MapX2 = MapX2 - 1
 				--Left
 				elseif Player2Direction == 3 then
-			--		console:createBuffer("P2 Up")
+			--		ConsoleForText:print("P2 Up")
 					MapStartY2 = MapStartY2 + 1
 				--	MapY2 = MapY2 + 1
 				--Right
 				elseif Player2Direction == 4 then
-			--		console:createBuffer("P2 Down")
+			--		ConsoleForText:print("P2 Down")
 					MapStartY2 = MapStartY2 - 1
 			--		MapY2 = MapY2 - 1
 				end
@@ -20985,7 +21048,7 @@ function HandleSprites()
 	end
 		if PlayerNewMap ~= 0 then
 			if ActualPlayerDirectionPrev ~= 0 then
-			--	console:createBuffer("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
+			--	ConsoleForText:print("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
 				--Up
 				if ActualPlayerDirectionPrev == 1 then
 					NewMapNewX = -1
@@ -21005,8 +21068,8 @@ end
 
 function CalculateCamera()
 		GetPlayerCamera(0)
-	--	console:createBuffer("Player X camera: " .. PlayerMapXMove .. "Player Y camera: " .. PlayerMapYMove)
-	--	console:createBuffer("PlayerMapXMove: " .. PlayerMapXMove .. "PlayerMapYMove: " .. PlayerMapYMove .. "PlayerMapXMovePREV: " .. PlayerMapXMovePrev .. "PlayerMapYMovePrev: " .. PlayerMapYMovePrev)
+	--	ConsoleForText:print("Player X camera: " .. PlayerMapXMove .. "Player Y camera: " .. PlayerMapYMove)
+	--	ConsoleForText:print("PlayerMapXMove: " .. PlayerMapXMove .. "PlayerMapYMove: " .. PlayerMapYMove .. "PlayerMapXMovePREV: " .. PlayerMapXMovePrev .. "PlayerMapYMovePrev: " .. PlayerMapYMovePrev)
 		
 		local ResetXPos = 0
 		local ResetYPos = 0
@@ -21027,18 +21090,18 @@ function CalculateCamera()
 	--	if PlayerYCameraTemp > 30000 then PlayerYCameraTemp = PlayerYCameraTemp - 62355 end
 	--	if PlayerXCameraTemp < -30000 then PlayerXCameraTemp = PlayerXCameraTemp + 62355 end
 	--	if PlayerYCameraTemp < -30000 then PlayerYCameraTemp = PlayerYCameraTemp + 62355 end
-	--	if PlayerXCameraTemp ~= 0 then console:createBuffer("PlayerXMove: " .. PlayerMapXMove .. "PlayerXMovePrev: " .. PlayerMapXMovePrev) end
+	--	if PlayerXCameraTemp ~= 0 then ConsoleForText:print("PlayerXMove: " .. PlayerMapXMove .. "PlayerXMovePrev: " .. PlayerMapXMovePrev) end
 		
 		--Animate left movement
-	--	if TempVar2 == 0 then console:createBuffer("PlayerYCameraTemp: " .. PlayerYCameraTemp .. " PlayerMapYMovePrev: " .. PlayerMapYMovePrev .. " PlayerMapYMove: " .. PlayerMapYMove) end
+	--	if TempVar2 == 0 then ConsoleForText:print("PlayerYCameraTemp: " .. PlayerYCameraTemp .. " PlayerMapYMovePrev: " .. PlayerMapYMovePrev .. " PlayerMapYMove: " .. PlayerMapYMove) end
 		if PlayerXCameraTemp > 0 then
 			PlayerXCamera = PlayerXCamera + PlayerXCameraTemp
-		--	console:createBuffer("Moving left.")
+		--	ConsoleForText:print("Moving left.")
 			
 		--Animate right movement
 		elseif PlayerXCameraTemp < 0 then
 			PlayerXCamera = PlayerXCamera + PlayerXCameraTemp
-	--		console:createBuffer("Moving right.")
+	--		ConsoleForText:print("Moving right.")
 		else
 			PlayerXCamera = 0
 		end
@@ -21047,12 +21110,12 @@ function CalculateCamera()
 		--Animate down movement
 		if PlayerYCameraTemp > 0 then
 			PlayerYCamera = PlayerYCamera + PlayerYCameraTemp
-	--		console:createBuffer("Moving up.")
+	--		ConsoleForText:print("Moving up.")
 			
 		--Animate up movement
 		elseif PlayerYCameraTemp < 0 then
 			PlayerYCamera = PlayerYCamera + PlayerYCameraTemp
-	--		console:createBuffer("Moving down.")
+	--		ConsoleForText:print("Moving down.")
 		else
 			PlayerYCamera = 0
 		end
@@ -21077,13 +21140,22 @@ function DrawChars()
 		HidePlayers()
 		HandleSprites()
 		CalculateCamera()
-			if PlayerID ~= 1 then DrawPlayer1() end
-			if PlayerID ~= 2 then DrawPlayer2() end
+			if PlayerID ~= 1 then
+				DrawPlayer1()
+			else
+				ErasePlayer1()
+			end
+			if PlayerID ~= 2 then
+				DrawPlayer2()
+			else
+				ErasePlayer2()
+			end
 		--	if PlayerID ~= 3 then DrawPlayer3() end
 		--	if PlayerID ~= 4 then DrawPlayer4() end
 		end
 	end
 end
+
 
 function DrawPlayer1()
 		local u32 PlayerYAddress = 0
@@ -21094,7 +21166,7 @@ function DrawPlayer1()
 		local u32 PlayerExtra2Address = 0
 		local u32 PlayerExtra3Address = 0
 		local u32 PlayerExtra4Address = 0
-		if GameID == "BPRE" then
+		if GameID == "BPR1" or GameID == "BPR2" then
 			--Addresses for Firered
 			Player1Address = 50345168
 			PlayerYAddress = Player1Address
@@ -21105,7 +21177,7 @@ function DrawPlayer1()
 			PlayerExtra2Address = PlayerYAddress + 5
 			PlayerExtra3Address = PlayerYAddress + 6
 			PlayerExtra4Address = PlayerYAddress + 7
-		elseif GameID == "BPGE" then
+		elseif GameID == "BPG1" or GameID == "BPG2" then
 			--Addresses for Leafgreen
 			Player1Address = 50345168
 			PlayerYAddress = Player1Address
@@ -21139,10 +21211,10 @@ function DrawPlayer1()
 		else FacingTemp = 128
 		end
 		
-	--	if TempVar2 == 0 then console:createBuffer("Player2Vis: " .. Player2Vis .. " Player2Y: " .. FinalMapY .. " Player2X: " .. FinalMapX) end
-	--	console:createBuffer("Attempting to create player 1. X: " .. MapX .. " Y: " .. MapY)
---		if TempVar2 == 0 then console:createBuffer("CURRY PLAYER2: " .. MapStartY2 .. "MAXY PLAYER2: " .. MapY2Prev) end
---		if TempVar2 == 0 then console:createBuffer("FINALYP1: " .. FinalMapY .. "CURRY PLAYER1: " .. MapStartY .. "MAXY PLAYER1: " .. MapYPrev) end
+	--	if TempVar2 == 0 then ConsoleForText:print("Player2Vis: " .. Player2Vis .. " Player2Y: " .. FinalMapY .. " Player2X: " .. FinalMapX) end
+	--	ConsoleForText:print("Attempting to create player 1. X: " .. MapX .. " Y: " .. MapY)
+--		if TempVar2 == 0 then ConsoleForText:print("CURRY PLAYER2: " .. MapStartY2 .. "MAXY PLAYER2: " .. MapY2Prev) end
+--		if TempVar2 == 0 then ConsoleForText:print("FINALYP1: " .. FinalMapY .. "CURRY PLAYER1: " .. MapStartY .. "MAXY PLAYER1: " .. MapYPrev) end
 		if not ((FinalMapX > MaxX or FinalMapX < MinX) or (FinalMapY > MaxY or FinalMapY < MinY)) then 
 			--128 = left, 144 = right facing
 			--Facing = 128
@@ -21296,6 +21368,62 @@ function DrawPlayer1()
 					emu:write8(PlayerExtra4Address, 1)
 		end
 end
+function ErasePlayer1()
+		local u32 PlayerYAddress = 0
+		local u32 PlayerXAddress = 0
+		local u32 PlayerFaceAddress = 0
+		local u32 PlayerSpriteAddress = 0
+		local u32 PlayerExtra1Address = 0
+		local u32 PlayerExtra2Address = 0
+		local u32 PlayerExtra3Address = 0
+		local u32 PlayerExtra4Address = 0
+		if GameID == "BPR1" or GameID == "BPR2" then
+			--Addresses for Firered
+			Player1Address = 50345168
+			PlayerYAddress = Player1Address
+			PlayerXAddress = PlayerYAddress + 2
+			PlayerFaceAddress = PlayerYAddress + 3
+			PlayerSpriteAddress = PlayerYAddress + 1
+			PlayerExtra1Address = PlayerYAddress + 4
+			PlayerExtra2Address = PlayerYAddress + 5
+			PlayerExtra3Address = PlayerYAddress + 6
+			PlayerExtra4Address = PlayerYAddress + 7
+		elseif GameID == "BPG1" or GameID == "BPG2" then
+			--Addresses for Leafgreen
+			Player1Address = 50345168
+			PlayerYAddress = Player1Address
+			PlayerXAddress = PlayerYAddress + 2
+			PlayerFaceAddress = PlayerYAddress + 3
+			PlayerSpriteAddress = PlayerYAddress + 1
+			PlayerExtra1Address = PlayerYAddress + 4
+			PlayerExtra2Address = PlayerYAddress + 5
+			PlayerExtra3Address = PlayerYAddress + 6
+			PlayerExtra4Address = PlayerYAddress + 7
+		end
+				emu:write8(PlayerYAddress, 160)
+				emu:write8(PlayerXAddress, 48)
+				emu:write8(PlayerFaceAddress, 1)
+				emu:write8(PlayerSpriteAddress, 0)
+				emu:write16(PlayerExtra1Address, 12)
+				emu:write8(PlayerExtra3Address, 0)
+				emu:write8(PlayerExtra4Address, 1)
+					--Surfing char
+					PlayerYAddress = Player1Address + 8
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
+end
 function DrawPlayer2()
 		local u32 PlayerYAddress = 0
 		local u32 PlayerXAddress = 0
@@ -21305,7 +21433,7 @@ function DrawPlayer2()
 		local u32 PlayerExtra2Address = 0
 		local u32 PlayerExtra3Address = 0
 		local u32 PlayerExtra4Address = 0
-		if GameID == "BPRE" then
+		if GameID == "BPR1" or GameID == "BPR2" then
 			--Addresses for Firered
 			Player1Address = 50345184
 			PlayerYAddress = Player1Address
@@ -21316,7 +21444,7 @@ function DrawPlayer2()
 			PlayerExtra2Address = PlayerYAddress + 5
 			PlayerExtra3Address = PlayerYAddress + 6
 			PlayerExtra4Address = PlayerYAddress + 7
-		elseif GameID == "BPGE" then
+		elseif GameID == "BPG1" or GameID == "BPG2" then
 			--Addresses for Leafgreen
 			Player1Address = 50345184
 			PlayerYAddress = Player1Address
@@ -21348,19 +21476,19 @@ function DrawPlayer2()
 		FinalMapY = FinalMapY + NewMapY2Pos - PlayerY2 + 56
 --		FinalMapX = FinalMapX - PlayerX2 + 112
 --		FinalMapY = FinalMapY - PlayerY2 + 56
---		if TempVar2 == 0 then console:createBuffer("PlayerY2POS: " .. NewMapY2Pos .. " PlayerY2: " .. PlayerY2) end
+--		if TempVar2 == 0 then ConsoleForText:print("PlayerY2POS: " .. NewMapY2Pos .. " PlayerY2: " .. PlayerY2) end
 		
 		--Flip sprite if facing right
 		local FacingTemp = Facing2
 		if FacingTemp == 1 then FacingTemp = 144
 		else FacingTemp = 128
 		end
---		if TempVar2 == 0 then console:createBuffer("MapX: " .. MapX2 .. " PlayerXCamera2: " .. PlayerXCamera2) end
-	--	if TempVar2 == 0 then console:createBuffer("MapY: " .. MapY2 .. " PlayerXCamera2: " .. PlayerYCamera2) end
+--		if TempVar2 == 0 then ConsoleForText:print("MapX: " .. MapX2 .. " PlayerXCamera2: " .. PlayerXCamera2) end
+	--	if TempVar2 == 0 then ConsoleForText:print("MapY: " .. MapY2 .. " PlayerXCamera2: " .. PlayerYCamera2) end
 		if not ((FinalMapX > MaxX or FinalMapX < MinX) or (FinalMapY > MaxY or FinalMapY < MinY)) then 
 			
 			if Player2Vis == 1 then
-		--		if TempVar2 == 0 then console:createBuffer("EXTRA 1: " .. Player2Extra1) end
+		--		if TempVar2 == 0 then ConsoleForText:print("EXTRA 1: " .. Player2Extra1) end
 				--Bikes need different vars
 				if Player2Extra1 >= 17 and Player2Extra1 <= 32 then
 				FinalMapX = FinalMapX - 8
@@ -21495,6 +21623,62 @@ function DrawPlayer2()
 					emu:write8(PlayerExtra4Address, 1)
 		end
 end
+function ErasePlayer2()
+		local u32 PlayerYAddress = 0
+		local u32 PlayerXAddress = 0
+		local u32 PlayerFaceAddress = 0
+		local u32 PlayerSpriteAddress = 0
+		local u32 PlayerExtra1Address = 0
+		local u32 PlayerExtra2Address = 0
+		local u32 PlayerExtra3Address = 0
+		local u32 PlayerExtra4Address = 0
+		if GameID == "BPR1" or GameID == "BPR2" then
+			--Addresses for Firered
+			Player1Address = 50345184
+			PlayerYAddress = Player1Address
+			PlayerXAddress = PlayerYAddress + 2
+			PlayerFaceAddress = PlayerYAddress + 3
+			PlayerSpriteAddress = PlayerYAddress + 1
+			PlayerExtra1Address = PlayerYAddress + 4
+			PlayerExtra2Address = PlayerYAddress + 5
+			PlayerExtra3Address = PlayerYAddress + 6
+			PlayerExtra4Address = PlayerYAddress + 7
+		elseif GameID == "BPG1" or GameID == "BPG2" then
+			--Addresses for Leafgreen
+			Player1Address = 50345184
+			PlayerYAddress = Player1Address
+			PlayerXAddress = PlayerYAddress + 2
+			PlayerFaceAddress = PlayerYAddress + 3
+			PlayerSpriteAddress = PlayerYAddress + 1
+			PlayerExtra1Address = PlayerYAddress + 4
+			PlayerExtra2Address = PlayerYAddress + 5
+			PlayerExtra3Address = PlayerYAddress + 6
+			PlayerExtra4Address = PlayerYAddress + 7
+		end
+				emu:write8(PlayerYAddress, 160)
+				emu:write8(PlayerXAddress, 48)
+				emu:write8(PlayerFaceAddress, 1)
+				emu:write8(PlayerSpriteAddress, 0)
+				emu:write16(PlayerExtra1Address, 12)
+				emu:write8(PlayerExtra3Address, 0)
+				emu:write8(PlayerExtra4Address, 1)
+					--Surfing char
+					PlayerYAddress = Player1Address + 8
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
+end
 function DrawPlayer3()
 		if GameID == "BPRE" then
 			--Addresses for Firered
@@ -21533,8 +21717,8 @@ function DrawPlayer3()
 		else FacingTemp = 128
 		end
 		
-	--	console:createBuffer("MinX" .. MinX .. " " .. MinY .. " " .. MaxX .. " " .. MaxY .. "Player 2 var: " .. FinalMapX .. " " .. FinalMapY .. " " .. PlayerX .. " " .. PlayerY .. " " .. PlayerXCamera .. " " .. PlayerYCamera .. " " .. NewMapX2Pos .. " " .. NewMapY2Pos)
-	--	console:createBuffer("Drawing Player 2. X: " .. FinalMapX .. " Y: " .. FinalMapY .. " Player2X: " .. PlayerX2)
+	--	ConsoleForText:print("MinX" .. MinX .. " " .. MinY .. " " .. MaxX .. " " .. MaxY .. "Player 2 var: " .. FinalMapX .. " " .. FinalMapY .. " " .. PlayerX .. " " .. PlayerY .. " " .. PlayerXCamera .. " " .. PlayerYCamera .. " " .. NewMapX2Pos .. " " .. NewMapY2Pos)
+	--	ConsoleForText:print("Drawing Player 2. X: " .. FinalMapX .. " Y: " .. FinalMapY .. " Player2X: " .. PlayerX2)
 		if not ((MapX3 > MaxX or MapX3 < MinX) or (MapY3 > MaxY or MapY3 < MinY)) then 
 		
 			if Player3Vis == 1 then
@@ -21604,8 +21788,8 @@ function DrawPlayer4()
 		else FacingTemp = 128
 		end
 		
-	--	console:createBuffer("MinX" .. MinX .. " " .. MinY .. " " .. MaxX .. " " .. MaxY .. "Player 2 var: " .. FinalMapX .. " " .. FinalMapY .. " " .. PlayerX .. " " .. PlayerY .. " " .. PlayerXCamera .. " " .. PlayerYCamera .. " " .. NewMapX2Pos .. " " .. NewMapY2Pos)
-	--	console:createBuffer("Drawing Player 2. X: " .. FinalMapX .. " Y: " .. FinalMapY .. " Player2X: " .. PlayerX2)
+	--	ConsoleForText:print("MinX" .. MinX .. " " .. MinY .. " " .. MaxX .. " " .. MaxY .. "Player 2 var: " .. FinalMapX .. " " .. FinalMapY .. " " .. PlayerX .. " " .. PlayerY .. " " .. PlayerXCamera .. " " .. PlayerYCamera .. " " .. NewMapX2Pos .. " " .. NewMapY2Pos)
+	--	ConsoleForText:print("Drawing Player 2. X: " .. FinalMapX .. " Y: " .. FinalMapY .. " Player2X: " .. PlayerX2)
 		if not ((MapX4 > MaxX or MapX4 < MinX) or (MapY4 > MaxY or MapY4 < MinY)) then 
 			
 			if Player4Vis == 1 then
@@ -21646,14 +21830,22 @@ end
 
 function GetNewGame()
     ClearAllVar()
-	console:createBuffer("A new game has started")
+	if ConsoleForText == nil then
+		ConsoleForText = console:createBuffer("GBA-PK SERVER")
+	end
+	ConsoleForText:clear()
+	ConsoleForText:moveCursor(0,0)
+	ConsoleForText:print("A new game has started")
+	ConsoleForText:moveCursor(0,1)
 	FFTimer2 = os.clock()
 	GetGameVersion()
 end
 
 function shutdownGame()
     ClearAllVar()
-	console:createBuffer("The game was shutdown")
+	ConsoleForText:clear()
+	ConsoleForText:moveCursor(0,0)
+	ConsoleForText:print("The game was shutdown")
 end
 
 --Begin Networking
@@ -21661,17 +21853,36 @@ end
 --Create Server
 
 function CreateNetwork()
-	SocketMain:bind(nil, Port)
-	SocketMain:listen()
---	if SocketMain.ERRORS == OK then
+	if MasterClient ~= "h" then
+		SocketMain:bind(nil, Port)
+		SocketMain:listen()
 		MasterClient = "h"
-		console:createBuffer("Hosting game. Port forwarding may be required.")
---	else
---		if ErrorAmount < 3 then
---			console:createBuffer("There was an error binding a port. Please relaunch the emulator.")
---			ErrorAmount = ErrorAmount + 1
---		end
---	end
+		ConsoleForText:moveCursor(0,3)
+		ConsoleForText:print("Hosting game. Port forwarding may be required.")
+		ConsoleForText:moveCursor(0,4)
+		ConsoleForText:print("Searching for player...                                                ")
+		ConsoleForText:moveCursor(0,15)
+		ConsoleForText:print("Player 2: Disconnected                     ")
+	else
+		ConsoleForText:moveCursor(0,3)
+		ConsoleForText:print("Hosting game. Port forwarding may be required.")
+		if Player2ID ~= "None" then
+			ConsoleForText:moveCursor(0,4)
+			ConsoleForText:print("Player " .. Player2ID .. " has successfully connected.                                                             ")
+			ConsoleForText:moveCursor(0,15)
+			ConsoleForText:print("Player 2: Connected                      ")
+		else
+			ConsoleForText:moveCursor(0,4)
+			ConsoleForText:print("Searching for player...                                                ")
+			ConsoleForText:moveCursor(0,15)
+			ConsoleForText:print("Player 2: Disconnected                     ")
+		end
+	end
+--	if SocketMain.ERRORS == OK then
+	--	ConsoleForText:moveCursor(0,16)
+	--	ConsoleForText:print("Player 3: Disconnected")
+	--	ConsoleForText:moveCursor(0,17)
+	--	ConsoleForText:print("Player 4: Disconnected")
 end
 function SetPokemonData(PokeData)
 	if string.len(EnemyPokemon[1]) < 250 then EnemyPokemon[1] = EnemyPokemon[1] .. PokeData
@@ -21698,9 +21909,9 @@ function ReceiveData(Clientell)
 					ReceiveDataSmall[4] = string.sub(ReadData,10,13)
 					ReceiveDataSmall[29] = string.sub(ReadData,64,64)
 					ReceiveDataSmall[29] = tonumber(ReceiveDataSmall[29])
-			--		if ReceiveDataSmall[4] == "BATT" then console:createBuffer("Valid package! Contents: " .. ReadData) end
+			--		if ReceiveDataSmall[4] == "BATT" then ConsoleForText:print("Valid package! Contents: " .. ReadData) end
 					if ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "SLNK" then
-					--		console:createBuffer("RECEIVED DATA")
+					--		ConsoleForText:print("RECEIVED DATA")
 							ReceiveDataSmall[5] = string.sub(ReadData,14,23)
 							ReceiveDataSmall[5] = tonumber(ReceiveDataSmall[5])
 							if ReceiveDataSmall[5] ~= 0 then
@@ -21787,17 +21998,17 @@ function ReceiveData(Clientell)
 						--Set connection type to var
 							ReturnConnectionType = ReceiveDataSmall[4]
 						
-					--	console:createBuffer("Valid package! Contents: " .. ReadData)
-				--	if ReceiveDataSmall[4] == "DTRA" then console:createBuffer("Locktype: " .. LockFromScript) end
+					--	ConsoleForText:print("Valid package! Contents: " .. ReadData)
+				--	if ReceiveDataSmall[4] == "DTRA" then ConsoleForText:print("Locktype: " .. LockFromScript) end
 						
 						if ReceiveDataSmall[4] == "RPOK" and ReceiveDataSmall[3] == 2 then
 							CreatePackettSpecial("POKE",Player2)
 						end
 						
 						--If player 2 requests for a battle
-						if ReceiveDataSmall[4] == "RBAT" and ReceiveDataSmall[3] == 2 and LockFromScript == 0 then
+						if ReceiveDataSmall[4] == "RBAT" and ReceiveDataSmall[3] == 20 then
 							local TooBusyByte = emu:read8(50335644)
-							if TooBusyByte ~= 0 then
+							if (TooBusyByte ~= 0 or LockFromScript ~= 0) then
 								SendData("TBUS", Player2)
 							else
 								OtherPlayerHasCancelled = 0
@@ -21807,9 +22018,9 @@ function ReceiveData(Clientell)
 						end
 						
 						--If player 2 requests for a trade
-						if ReceiveDataSmall[4] == "RTRA" and ReceiveDataSmall[3] == 2 and LockFromScript == 0 then
+						if ReceiveDataSmall[4] == "RTRA" and ReceiveDataSmall[3] == 2 then
 							local TooBusyByte = emu:read8(50335644)
-							if TooBusyByte ~= 0 then
+							if (TooBusyByte ~= 0 or LockFromScript ~= 0) then
 								SendData("TBUS", Player2)
 							else
 								OtherPlayerHasCancelled = 0
@@ -21820,7 +22031,7 @@ function ReceiveData(Clientell)
 						
 						--If player 2 is too busy to battle
 						if ReceiveDataSmall[4] == "TBUS" and ReceiveDataSmall[3] == 2 and LockFromScript == 4 then
-						--	console:createBuffer("Other player is too busy to battle.")
+						--	ConsoleForText:print("Other player is too busy to battle.")
 							if Var8000[2] ~= 0 then
 								LockFromScript = 7
 								Loadscript(20)
@@ -21829,7 +22040,7 @@ function ReceiveData(Clientell)
 							end
 						--If player 2 is too busy to trade
 						elseif ReceiveDataSmall[4] == "TBUS" and ReceiveDataSmall[3] == 2 and LockFromScript == 5 then
-						--	console:createBuffer("Other player is too busy to trade.")
+						--	ConsoleForText:print("Other player is too busy to trade.")
 							if Var8000[2] ~= 0 then
 								LockFromScript = 7
 								Loadscript(21)
@@ -21840,12 +22051,12 @@ function ReceiveData(Clientell)
 						
 						--If player 2 cancels battle
 						if ReceiveDataSmall[4] == "CBAT" and ReceiveDataSmall[3] == 2 then
-					--		console:createBuffer("Other player has canceled battle.")
+					--		ConsoleForText:print("Other player has canceled battle.")
 							OtherPlayerHasCancelled = 1
 						end
 						--If player 2 cancels trade
 						if ReceiveDataSmall[4] == "CTRA" and ReceiveDataSmall[3] == 2 then
-					--		console:createBuffer("Other player has canceled trade.")
+					--		ConsoleForText:print("Other player has canceled trade.")
 							OtherPlayerHasCancelled = 2
 						end
 						
@@ -21907,6 +22118,7 @@ function ReceiveData(Clientell)
 							if Player2ID ~= "None" and ReceiveDataSmall[3] == 2 then
 								timeout1 = timeoutmax
 								ReceiveDataSmall[26] = tonumber(ReceiveDataSmall[26])
+								Player2ID = ReceiveDataSmall[2]
 								if MapID2 ~= ReceiveDataSmall[26] then
 									NewMap2 = 1
 									MapStartX2 = tonumber(ReceiveDataSmall[9])
@@ -21914,7 +22126,7 @@ function ReceiveData(Clientell)
 									if MapStartX2 > 9 then MapStartX2 = MapStartX2 - 10 end
 									if MapStartY2 > 9 then MapStartY2 = MapStartY2 - 10 end
 									MapID2 = ReceiveDataSmall[26]
-						--			console:createBuffer("MapIDP2: " .. MapID2 .. " MapIDP2Prev: " .. ReceiveDataSmall[27])
+						--			ConsoleForText:print("MapIDP2: " .. MapID2 .. " MapIDP2Prev: " .. ReceiveDataSmall[27])
 								end
 								if MapID2 == PlayerMapID then
 									MapX2Prev = tonumber(ReceiveDataSmall[9])
@@ -21924,11 +22136,11 @@ function ReceiveData(Clientell)
 								end
 								NewMapX2 = tonumber(ReceiveDataSmall[9])
 								NewMapY2 = tonumber(ReceiveDataSmall[10])
-						--		console:createBuffer("MapX: " .. NewMapX2 .. " MapY: " .. NewMapY2)
+						--		ConsoleForText:print("MapX: " .. NewMapX2 .. " MapY: " .. NewMapY2)
 						--		Facing2 = tonumber(ReceiveDataSmall[11])
 								Player2Extra1 = tonumber(ReceiveDataSmall[20])
 								Player2Extra2 = tonumber(ReceiveDataSmall[21])
-					--			console:createBuffer("Player2Extra2: " .. ReceiveDataSmall[21])
+					--			ConsoleForText:print("Player2Extra2: " .. ReceiveDataSmall[21])
 								FixPositionPlayer2()
 								NewMapConnect2Prev = tonumber(ReceiveDataSmall[27])
 								NewMapConnect2 = tonumber(ReceiveDataSmall[28])
@@ -21954,12 +22166,16 @@ function ReceiveData(Clientell)
 						if ReceiveDataSmall[4] == "JOIN" then
 						
 						--	if (ReceiveDataSmall[2] ~= None) then if (ReceiveDataSmall[2] ~= Player2ID and ReceiveDataSmall[2] ~= Player3ID  and ReceiveDataSmall[2] ~= Player4ID) then
-							if (ReceiveDataSmall[2] ~= None) then
+							if (ReceiveDataSmall[2] ~= "None") then
 								if (ReceiveDataSmall[2] ~= Player2ID) then
-									console:createBuffer("Player " .. ReceiveDataSmall[2] .. " has successfully connected.")
+									ConsoleForText:moveCursor(0,4)
+									ConsoleForText:print("Player " .. ReceiveDataSmall[2] .. " has successfully connected.                                                             ")
 									if Connected == 0 then Connected = 1 end
 									if Player2ID == "None" then
+											ConsoleForText:moveCursor(0,15)
+											ConsoleForText:print("Player 2: Connected                      ")
 											Player2ID = ReceiveDataSmall[2]
+											console:log("Player " .. Player2ID .. " has successfully connected")
 											Player2 = Clientell
 											Player2Vis = 1
 											MapX2Prev = tonumber(ReceiveDataSmall[6])
@@ -21984,16 +22200,18 @@ function ReceiveData(Clientell)
 							--				SendData("NewPlayer4", Player4)
 							--				timeout3 = timeoutmax
 									else
-										console:createBuffer("A player was unable to join due to capacity limit.")
-										SendData("DENY", Clientell)
+										ConsoleForText:moveCursor(0,4)
+										ConsoleForText:print("A player is unable to join due to capacity limit.                ")
+									--	SendData("DENY", Clientell)
 									end
 								else
-									console:createBuffer("This player is already in the game!")
+									ConsoleForText:moveCursor(0,4)
+									ConsoleForText:print("A player that is already in the game is trying to join!                ")
 								end
 							
 							end
 				--	else
-				--		console:createBuffer("INVALID PACKAGE: " .. ReadData)
+				--		ConsoleForText:print("INVALID PACKAGE: " .. ReadData)
 					end
 				end
 			end
@@ -22010,7 +22228,7 @@ function CreatePackettSpecial(RequestTemp, Socket2, OptionalData)
 			PokeTemp = string.sub(Pokemon[j],1,50)
 			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
 			Socket2:send(Packett)
-		--	console:createBuffer("Packett: " .. Packett)
+		--	ConsoleForText:print("Packett: " .. Packett)
 			PokeTemp = string.sub(Pokemon[j],51,100)
 			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
 			Socket2:send(Packett)
@@ -22023,7 +22241,7 @@ function CreatePackettSpecial(RequestTemp, Socket2, OptionalData)
 			PokeTemp = string.sub(Pokemon[j],201,250)
 			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
 			Socket2:send(Packett)
-		--		console:createBuffer("Packett: " .. Packett)
+		--		ConsoleForText:print("Packett: " .. Packett)
 		end
 	elseif RequestTemp == "TRAD" then
 		local FillerSend = "100000"
@@ -22032,7 +22250,7 @@ function CreatePackettSpecial(RequestTemp, Socket2, OptionalData)
 	elseif RequestTemp == "BATT" then
 		local FillerSend = "1000000000000000000000000000000000000000"
 		Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. BattleVars[1] .. BattleVars[2] .. BattleVars[3] .. BattleVars[4] .. BattleVars[5] .. BattleVars[6] .. BattleVars[7] .. BattleVars[8] .. BattleVars[9] .. BattleVars[10] .. FillerSend .. PlayerID
-	--	console:createBuffer("Packett: " .. Packett)
+	--	ConsoleForText:print("Packett: " .. Packett)
 		Socket2:send(Packett)
 	elseif RequestTemp == "SLNK" then
 		OptionalData = OptionalData or 0
@@ -22041,7 +22259,7 @@ function CreatePackettSpecial(RequestTemp, Socket2, OptionalData)
  --		SizeAct = tostring(SizeAct)
 --		SizeAct = string.format("%.0f",SizeAct)
 		Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. SizeAct .. Filler .. PlayerID
---		console:createBuffer("Packett: " .. Packett)
+--		ConsoleForText:print("Packett: " .. Packett)
 		Socket2:send(Packett)
 	end
 end
@@ -22078,7 +22296,7 @@ function CreatePackett(RequestTemp, PackettTemp)
 		Player4VisTemp = string.sub(PackettTemp,4,4)
 		PackettTemp = "100"
 		RequestTemp = "SPOS"
-	--	console:createBuffer("SPO2 RECEIVED! Sending to " .. TempVar1 .. " Map 1: " .. MapID .. " Map 2: " .. MapID2 .. " Vars: " .. PackettTemp )
+	--	ConsoleForText:print("SPO2 RECEIVED! Sending to " .. TempVar1 .. " Map 1: " .. MapID .. " Map 2: " .. MapID2 .. " Vars: " .. PackettTemp )
 	end
 	Packett =  GameID .. Nickname .. PlayerID .. RequestTemp .. PackettTemp .. NewMapConnect .. MapX .. MapY .. Facing .. Player1VisTemp .. MapX2 .. MapY2 .. Facing2 .. Player2VisTemp .. MapX3 .. MapY3 .. Facing3 .. Player3VisTemp .. MapX4 .. MapY4 .. Facing4 .. Player4VisTemp .. PlayerExtra1 .. PlayerExtra2 .. Player2Extra1 .. Player2Extra2 .. Player3Extra1 .. Player3Extra2 .. Player4Extra1 .. Player4Extra2 .. PlayerMapID .. PlayerID
 	FixAllPositions()
@@ -22087,15 +22305,15 @@ end
 function SendData(DataType, Socket)
 	--If you have made a server
 	if (DataType == "NewPlayer2") then
-		console:createBuffer("Request accepted!")
+	--	ConsoleForText:print("Request accepted!")
 		CreatePackett("STRT", "200")
 		Socket:send(Packett)
 	elseif (DataType == "NewPlayer3") then
-		console:createBuffer("Request accepted!")
+	--	ConsoleForText:print("Request accepted!")
 		CreatePackett("STRT", "300")
 		Socket:send(Packett)
 	elseif (DataType == "NewPlayer4") then
-		console:createBuffer("Request accepted!")
+	--	ConsoleForText:print("Request accepted!")
 		CreatePackett("STRT", "400")
 		Socket:send(Packett)
 	elseif (DataType == "DENY") then
@@ -22240,21 +22458,50 @@ function ConnectNetwork()
 		if ReceiveTimer == 0 then
 		--Receive data
 		local PlayerData = SocketMain:accept()
-		if timeout1 > 0 then timeout1 = timeout1 - 1 end
-		if timeout2 > 0 then timeout2 = timeout2 - 1 end
-		if timeout3 > 0 then timeout3 = timeout3 - 1 end
 		if (PlayerData ~= nil) then ReceiveData(PlayerData) end
+	--	ReceiveData(PlayerData)
 		if Player2ID ~= "None" then ReceiveData(Player2) end
 		if Player3ID ~= "None" then ReceiveData(Player3) end
 		if Player4ID ~= "None" then ReceiveData(Player4) end
-		if Player2ID ~= "None" then if timeout1 == 0 then console:createBuffer("Player 2 has been disconnected due to timeout") Player2ID = "None" end end
-		if Player3ID ~= "None" then if timeout2 == 0 then console:createBuffer("Player 3 has been disconnected due to timeout") Player3ID = "None" end end
-		if Player4ID ~= "None" then if timeout3 == 0 then console:createBuffer("Player 4 has been disconnected due to timeout") Player4ID = "None" end end
-		end
+	end
 		
 
 		--Request and send positions from all players
 		if SendTimer == 0 then 
+		
+		if timeout1 > 0 then timeout1 = timeout1 - 4 end
+		if timeout2 > 0 then timeout2 = timeout2 - 4 end
+		if timeout3 > 0 then timeout3 = timeout3 - 4 end
+		if Player2ID ~= "None" then
+			if timeout1 <= 0 then
+				console:log("Player " .. Player2ID .. " has timed out")
+				ConsoleForText:moveCursor(0,4)
+				ConsoleForText:print("Player " .. Player2ID .. " has been disconnected due to timeout.                              ")
+				ConsoleForText:moveCursor(0,15)
+				ConsoleForText:print("Player 2: Disconnected           ")
+				Player2ID = "None"
+				Player2:close()
+			end
+		end
+		if Player3ID ~= "None" then
+			if timeout2 <= 0 then
+				ConsoleForText:moveCursor(0,16)
+				ConsoleForText:print("Player 3: Disconnected")
+				ConsoleForText:moveCursor(0,4)
+				ConsoleForText:print("Player 3 has been disconnected due to timeout")
+				Player3ID = "None"
+			end
+		end
+		if Player4ID ~= "None" then
+			if timeout3 <= 0 then
+				ConsoleForText:moveCursor(0,17)
+				ConsoleForText:print("Player 4: Disconnected")
+				ConsoleForText:moveCursor(0,4)
+				ConsoleForText:print("Player 4 has been disconnected due to timeout")
+				Player4ID = "None"
+			end
+		end
+		
 		if Player2ID ~= "None" then SendData("GPos", Player2) end
 		if Player3ID ~= "None" then SendData("GPos", Player3) end
 		if Player4ID ~= "None" then SendData("GPos", Player4) end
@@ -22292,14 +22539,14 @@ function Interact()
 		--Hide n seek
 		if LockFromScript == 1 then
 			if Var8000[5] == 2 then
-		--		console:createBuffer("Hide n' Seek selected")
+		--		ConsoleForText:print("Hide n' Seek selected")
 				LockFromScript = 0
 				Loadscript(3)
 				Keypressholding = 1
 				Keypress = 1
 			
 			elseif Var8000[5] == 1 then
-		--		console:createBuffer("Hide n' Seek not selected")
+		--		ConsoleForText:print("Hide n' Seek not selected")
 				LockFromScript = 0
 				Loadscript(3)
 				Keypressholding = 1
@@ -22309,7 +22556,7 @@ function Interact()
 		elseif LockFromScript == 2 then
 			if Var8000[1] ~= Var8000[14] then
 				if Var8000[1] == 1 then
-		--			console:createBuffer("Battle selected")
+		--			ConsoleForText:print("Battle selected")
 					FixAddress()
 		--			LockFromScript = 4
 		--			Loadscript(4)
@@ -22320,7 +22567,7 @@ function Interact()
 		--			SendData("RBAT", Player2)
 				
 				elseif Var8000[1] == 2 then
-		--			console:createBuffer("Trade selected")
+		--			ConsoleForText:print("Trade selected")
 					FixAddress()
 					LockFromScript = 5
 					Loadscript(4)
@@ -22329,7 +22576,7 @@ function Interact()
 					SendData("RTRA", Player2)
 				
 				elseif Var8000[1] == 3 then
-		--			console:createBuffer("Card selected")
+		--			ConsoleForText:print("Card selected")
 					FixAddress()
 					LockFromScript = 6
 					Loadscript(3)
@@ -22337,7 +22584,7 @@ function Interact()
 					Keypress = 1
 				
 				elseif Var8000[1] ~= 0 then
-		--			console:createBuffer("Exit selected")
+		--			ConsoleForText:print("Exit selected")
 					FixAddress()
 					LockFromScript = 0
 					Keypressholding = 1
@@ -22347,7 +22594,7 @@ function Interact()
 		end
 	if Keypress ~= 0 then
 		if Keypress == 1 or Keypress == 65 or Keypress == 129 or Keypress == 33 or Keypress == 17 then
-	--		console:createBuffer("Pressed A")
+	--		ConsoleForText:print("Pressed A")
 	
 			--SCRIPTS. LOCK AND PREVENT SPAM PRESS. 
 			if LockFromScript == 0 and Keypressholding == 0 and TooBusyByte == 0 then
@@ -22365,18 +22612,18 @@ function Interact()
 					TalkingDirX = PlayerMapX - MapX2
 					TalkingDirY = PlayerMapY - MapY2
 					if ActualPlayerDirection == 1 and TalkingDirX == 1 and TalkingDirY == 0 then
-				--		console:createBuffer("Player2 Left")
+				--		ConsoleForText:print("Player2 Left")
 						
 					elseif ActualPlayerDirection == 2 and TalkingDirX == -1 and TalkingDirY == 0 then
-				--		console:createBuffer("Player2 Right")
+				--		ConsoleForText:print("Player2 Right")
 					elseif ActualPlayerDirection == 3 and TalkingDirY == 1 and TalkingDirX == 0 then
-				--		console:createBuffer("Player2 Up")
+				--		ConsoleForText:print("Player2 Up")
 					elseif ActualPlayerDirection == 4 and TalkingDirY == -1 and TalkingDirX == 0 then
-				--		console:createBuffer("Player2 Down")
+				--		ConsoleForText:print("Player2 Down")
 					end
 					if (ActualPlayerDirection == 1 and TalkingDirX == 1 and TalkingDirY == 0) or (ActualPlayerDirection == 2 and TalkingDirX == -1 and TalkingDirY == 0) or (ActualPlayerDirection == 3 and TalkingDirX == 0 and TalkingDirY == 1) or (ActualPlayerDirection == 4 and TalkingDirX == 0 and TalkingDirY == -1) then
 					
-				--		console:createBuffer("Player2 Any direction")
+				--		ConsoleForText:print("Player2 Any direction")
 						emu:write16(Var8000Adr[1], 0) 
 						emu:write16(Var8000Adr[2], 0) 
 						emu:write16(Var8000Adr[14], 0)
@@ -22398,25 +22645,38 @@ function Interact()
 				Loadscript(16)
 					SendData("CTRA",Player2)
 				LockFromScript = 0
+				TradeVars[1] = 0
+				TradeVars[2] = 0
+				TradeVars[3] = 0
+				OtherPlayerHasCancelled = 0
+			elseif LockFromScript == 9 and (TradeVars[1] == 2 or TradeVars[1] == 4) and Keypressholding == 0 and Var8000[2] ~= 0 then
+				--Cancel trade request
+				Loadscript(16)
+				SendData("CTRA",Player2)
+				LockFromScript = 0
+				TradeVars[1] = 0
+				TradeVars[2] = 0
+				TradeVars[3] = 0
+				OtherPlayerHasCancelled = 0
 			end
 			Keypressholding = 1
 		elseif Keypress == 4 then
 	--		GetPokemonTeam()
 	--		SetEnemyPokemonTeam()
-	--		console:createBuffer("Pressed Select")
+	--		ConsoleForText:print("Pressed Select")
 		elseif Keypress == 8 then
-	--		console:createBuffer("Pressed Start")
+	--		ConsoleForText:print("Pressed Start")
 		elseif Keypress == 16 then
-	--		console:createBuffer("Pressed Right")
+	--		ConsoleForText:print("Pressed Right")
 		elseif Keypress == 32 then
-	--		console:createBuffer("Pressed Left")
+	--		ConsoleForText:print("Pressed Left")
 		elseif Keypress == 64 then
-	--		console:createBuffer("Pressed Up")
+	--		ConsoleForText:print("Pressed Up")
 		elseif Keypress == 128 then
-	--		console:createBuffer("Pressed Down")
+	--		ConsoleForText:print("Pressed Down")
 		elseif Keypress == 256 then
 		--	if LockFromScript == 0 and Keypressholding == 0 then
-		--	console:createBuffer("Pressed R-Trigger")
+		--	ConsoleForText:print("Pressed R-Trigger")
 			--	ApplyMovement(0)
 		--		emu:write16(Var8001Adr, 0) 
 			--	BufferString = Player2ID
@@ -22424,7 +22684,7 @@ function Interact()
 		--		LockFromScript = 5
 		--		local TestString = ReadBuffers(33692880, 4)
 		--		WriteBuffers(33692912, TestString, 4)
-			--	console:createBuffer("String: " .. TestString)
+			--	ConsoleForText:print("String: " .. TestString)
 			
 		--		SendData("RPOK",Player2)
 		--		if EnemyPokemon[6] ~= 0 then
@@ -22433,10 +22693,11 @@ function Interact()
 				
 			--	LockFromScript = 8
 		--		SendMultiplayerPackets(0,256,Player2)
+		--	Loadscript(17)
 		--	end
-		--	Keypressholding = 1
+			Keypressholding = 1
 		elseif Keypress == 512 then
-	--		console:createBuffer("Pressed L-Trigger")
+	--		ConsoleForText:print("Pressed L-Trigger")
 	--		Loadscript(22)
 		end
 	else
@@ -22484,8 +22745,14 @@ function mainLoop()
 		initialized = 1
 		GetPosition()
 	--	Loadscript(0)
-		if Nickname == "" then Nickname = RandomizeNickname() console:createBuffer("Nickname is now " .. Nickname) end
-		if MasterClient == "a" then CreateNetwork() end
+		if Nickname == "" then
+			Nickname = RandomizeNickname()
+		end
+		ConsoleForText:moveCursor(0,2)
+		ConsoleForText:print("Nickname is now " .. Nickname)
+			
+		CreateNetwork()
+		ConsoleForText:moveCursor(0,4)
 	elseif EnableScript == true then
 			--Debugging
 			TempVar2 = ScriptTime % DebugTime2
@@ -22501,12 +22768,16 @@ function mainLoop()
 			--Create a network if not made every half
 			TempVarTimer = ScriptTime % DebugTime2
 			if TempVarTimer == 0 then
-				if MasterClient == "a" then CreateNetwork() end
+				if MasterClient == "a" then
+					ConsoleForText:moveCursor(0,3)
+					CreateNetwork()
+					ConsoleForText:moveCursor(0,4)
+				end
 			end
 							--VARS--
-		if GameID == "BPRE" then
+		if GameID == "BPR1" or GameID == "BPR2" then
 			Startvaraddress = 33779896
-		elseif GameID == "BPGE" then
+		elseif GameID == "BPG1" or GameID == "BPG2" then
 			Startvaraddress = 33779896
 		end
 		Var8000Adr[1] = Startvaraddress
@@ -22533,7 +22804,7 @@ function mainLoop()
 			
 						--BATTLE/TRADE--
 			
-		--	if TempVar2 == 0 then console:createBuffer("OtherPlayerCanceled: " .. OtherPlayerHasCancelled) end
+		--	if TempVar2 == 0 then ConsoleForText:print("OtherPlayerCanceled: " .. OtherPlayerHasCancelled) end
 			
 			--Wait until other player accepts battle
 			if LockFromScript == 4 then
@@ -22575,7 +22846,7 @@ function mainLoop()
 			--Show card. Placeholder for now
 			elseif LockFromScript == 6 then
 				if Var8000[2] ~= 0 then
-		--			console:createBuffer("Var 8001: " .. Var8000[2])
+		--			ConsoleForText:print("Var 8001: " .. Var8000[2])
 					LockFromScript = 0
 				--	if SendTimer == 0 then SendData("RTRA") end
 				end
@@ -22597,7 +22868,7 @@ function mainLoop()
 			
 			--Player 2 has requested to battle
 			elseif LockFromScript == 12 then
-		--	if Var8000[2] ~= 0 then console:createBuffer("Var8001: " .. Var8000[2]) end
+		--	if Var8000[2] ~= 0 then ConsoleForText:print("Var8001: " .. Var8000[2]) end
 				if Var8000[2] == 2 then
 					if OtherPlayerHasCancelled == 0 then
 						SendData("RPOK", Player2)
@@ -22613,7 +22884,7 @@ function mainLoop()
 				
 			--Player 2 has requested to trade
 			elseif LockFromScript == 13 then
-		--	if Var8000[2] ~= 0 then console:createBuffer("Var8001: " .. Var8000[2]) end
+		--	if Var8000[2] ~= 0 then ConsoleForText:print("Var8001: " .. Var8000[2]) end
 				--If accept, then send that you accept
 				if Var8000[2] == 2 then
 					if OtherPlayerHasCancelled == 0 then
@@ -22631,6 +22902,15 @@ function mainLoop()
 	end
 end
 
+if not (emu == nil) then
+	if ConsoleForText == nil then ConsoleForText = console:createBuffer("GBA-PK SERVER") end
+	console:log("Started GBA-PK_Server.lua")
+	ConsoleForText:clear()
+	ConsoleForText:moveCursor(0,1)
+	FFTimer2 = os.clock()
+    GetGameVersion()
+end
+
 SocketMain:add("received", ReceiveData)
 --Player2:add("received", Player2Network)
 --Player3:add("received", Player3Network)
@@ -22642,9 +22922,3 @@ callbacks:add("frame", DrawChars)
 
 
 callbacks:add("keysRead", Interact)
-
-console:createBuffer("The lua script 'GBA-PK_Server.lua' has been loaded")
-if not (emu == nil) then
-	FFTimer2 = os.clock()
-    GetGameVersion()
-end
