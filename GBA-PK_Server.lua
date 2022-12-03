@@ -1,12 +1,14 @@
 local IPAddress, Port = "127.0.0.1", 4096
+local MaxPlayers = 4
+local Nickname = ""
+
+
+
+
 local GameID = ""
 local GameCode = "None"
-local Nickname = ""
 local ConfirmPackett = 0
 local EnableScript = false
-local u32 GameInitializedByteAddress1 = 0
-local u32 GameInitializedByteAddress2 = 0
-local u32 GameInitializedByteAddress3 = 0
 local ClientConnection
 
 local u32 SpriteTempVar0 = 0
@@ -16,6 +18,7 @@ local u32 SpriteTempVar1 = 0
 local u32 MapAddress = 0
 local u32 MapAddress2 = 0
 local PlayerID = 1
+local PlayerID2 = 1001
 local ScriptTime = 0
 local ScriptTimePrev = 0
 local initialized = 0
@@ -24,172 +27,84 @@ local ScriptTimeFrame = 4
 --Internet Play
 --local tcp = assert(socket.tcp())
 local SocketMain = socket:tcp()
-local Player2 = socket:tcp()
-local Player3 = socket:tcp()
-local Player4 = socket:tcp()
-local Player1ID = "None"
-local Player2ID = "None"
-local Player3ID = "None"
-local Player4ID = "None"
-local Packett
+local Packett = ""
 local MasterClient = "a"
 --timout = every connection attempt
 local timeoutmax = 600
-local timeout1 = 0
-local timeout2 = 0
-local timeout3 = 0
 local ReturnConnectionType = ""
 local FramesPS = 0
 
---Server Switches
-local Player1Vis = 1
-local Player2Vis = 0
-local Player3Vis = 0
-local Player4Vis = 0
 
---Player 1
-local Player1Visible = true
-local MapID = 0
-local MapX = 0
-local MapY = 0
-local MapStartX = 0
-local MapStartY = 0
-local MapXPrev = 0
-local MapYPrev = 0
-local NewMapX = 0
-local NewMapY = 0
-local PlayerX = 0
-local PlayerY = 0
-local NewMapXPos = 0
-local NewMapYPos = 0
-local Facing = 0
-local PlayerExtra1 = 0
-local PlayerExtra2 = 0
-local PlayerExtra3 = 0
-local PlayerExtra4 = 0
-local PlayerDirection = 0
-local PlayerDirectionPrev = 0
 
---Player 2
-local Player2Visible = false
-local MapID2 = 0
-local MapX2 = 0
-local MapY2 = 0
-local MapStartX2 = 0
-local MapStartY2 = 0
-local MapX2Prev = 0
-local MapY2Prev = 0
-local NewMapX2 = 0
-local NewMapY2 = 0
-local Player2X = 0
-local Player2Y = 0
-local NewMapX2Pos = 0
-local NewMapY2Pos = 0
-local Facing2 = 0
-local Player2Extra1 = 0
-local Player2Extra2 = 0
-local Player2Direction = 0
-local Player2DirectionPrev = 0
+--MULTIPLAYER VARS
+local PlayerReceiveID = 1000
+local MultiplayerConsoleFlags = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+local PlayerTalkingID = 0
+local PlayerTalkingID2 = 1000
+local Players = {socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp()}
+local PlayerIDNick = {"None","None","None","None","None","None","None","None"}
+local timeout = {0,0,0,0,0,0,0,0}
+local AnimationX = {0,0,0,0,0,0,0,0}
+local AnimationY = {0,0,0,0,0,0,0,0}
+local FutureX = {0,0,0,0,0,0,0,0}
+local FutureY = {0,0,0,0,0,0,0,0}
+local CurrentX = {0,0,0,0,0,0,0,0}
+local CurrentY = {0,0,0,0,0,0,0,0}
+local PreviousX = {0,0,0,0,0,0,0,0}
+local PreviousY = {0,0,0,0,0,0,0,0}
+local StartX = {2000,2000,2000,2000,2000,2000,2000,2000}
+local StartY = {2000,2000,2000,2000,2000,2000,2000,2000}
+local DifferentMapX = {0,0,0,0,0,0,0,0}
+local DifferentMapY = {0,0,0,0,0,0,0,0}
+local RelativeX = {0,0,0,0,0,0,0,0}
+local RelativeY = {0,0,0,0,0,0,0,0}
+local CurrentFacingDirection = {0,0,0,0,0,0,0,0}
+local FutureFacingDirection = {0,0,0,0,0,0,0,0}
+local CurrentMapID = {0,0,0,0,0,0,0,0}
+local PreviousMapID = {0,0,0,0,0,0,0,0}
+local MapEntranceType = {1,1,1,1,1,1,1,1}
+local PlayerExtra1 = {0,0,0,0,0,0,0,0}
+local PlayerExtra2 = {0,0,0,0,0,0,0,0}
+local PlayerExtra3 = {0,0,0,0,0,0,0,0}
+local PlayerExtra4 = {0,0,0,0,0,0,0,0}
+local PlayerVis = {1,0,0,0,0,0,0,0}
+local Facing2 = {0,0,0,0,0,0,0,0}
+local MapID = {0,0,0,0,0,0,0,0}
+local PrevMapID = {0,0,0,0,0,0,0,0}
+local MapChange = {0,0,0,0,0,0,0,0}
+local HasErasedPlayer = {false,false,false,false,false,false,false,false}
+--Animation frames
+local PlayerAnimationFrame = {0,0,0,0,0,0,0,0}
+local PlayerAnimationFrame2 = {0,0,0,0,0,0,0,0}
+local PlayerAnimationFrameMax = {0,0,0,0,0,0,0,0}
+local PreviousPlayerAnimation = {0,0,0,0,0,0,0,0}
 
---Player 3
-local Player3Visible = false
-local MapID3 = 0
-local MapX3 = 0
-local MapY3 = 0
-local Player3X = 0
-local Player3Y = 0
-local NewMapX3 = 0
-local NewMapY3 = 0
-local NewMapX3Pos = 0
-local NewMapY3Pos = 0
-local Facing3 = 0
-local Player3Extra1 = 0
-local Player3Extra2 = 0
-
---Player 4
-local Player4Visible = false
-local MapID4 = 0
-local MapX4 = 0
-local MapY4 = 0
-local Player4X = 0
-local Player4Y = 0
-local NewMapX4 = 0
-local NewMapY4 = 0
-local NewMapX4Pos = 0
-local NewMapY4Pos = 0
-local Facing4 = 0
-local Player4Extra1 = 0
-local Player4Extra2 = 0
-
---Player char start addresses
-
---Player Stats
-local PlayerMapID = 0
-local PlayerMapIDPrev = 0
-local u8 PlayerMapX = 0
-local u8 PlayerMapY = 0
-local PlayerMapXMove = 0
-local PlayerMapYMove = 0
+--PLAYER VARS
+local StartXPlayer = 2000
+local StartYPlayer = 2000
+local CameraX = 0
+local CameraY = 0
 local PlayerMapXMovePrev = 0
 local PlayerMapYMovePrev = 0
+local PlayerX = 0
+local PlayerY = 0
+local PlayerMapID = 0
+local PlayerMapIDPrev = 0
+local PlayerMapEntranceType = 1
 local PlayerDirection = 0
-local PlayerDirectionPrev = 0
+local PreviousPlayerDirection = 0
+local PlayerMapChange = 0
+local PreviousPlayerX = 0
+local PreviousPlayerY = 0
+local PlayerFacing = 0
+local DifferentMapXPlayer = 0
+local DifferentMapYPlayer = 0
 
-
---To check if map is new
-local PlayerNewMap = 0
-local NewMap = 0
-local NewMap2 = 0
-local NewMap3 = 0
-local NewMap4 = 0
-
---To check if map was teleported to or entered through connection (0 for teleport, 1 for enter)
-local NewMapConnect = 0
-local NewMapConnect2 = 0
-local NewMapConnect3 = 0
-local NewMapConnect4 = 0
-
---Prev maps
-local NewMapConnectPrev = 0
-local NewMapConnect2Prev = 0
-local NewMapConnect3Prev = 0
-local NewMapConnect4Prev = 0
-
-
---Add camera movement. from +16 to -16
-local PlayerXCamera = 0
-local PlayerYCamera = 0
-local PlayerXCamera2 = 0
-local PlayerYCamera2 = 0
-local u8 PlayerFacing = 0
-local u16 ActualPlayerExtra1 = 0
-local u8 ActualPlayerExtra2 = 0
---If 0 then don't render players
-
---Animation frames
-local Player1AnimationFrame = 0
-local Player1AnimationFrame2 = 0
-local Player2AnimationFrame = 0
-local Player2AnimationFrame2 = 0
-local Player3AnimationFrame = 0
-local Player3AnimationFrame2 = 0
-local Player4AnimationFrame = 0
-local Player4AnimationFrame2 = 0
-local PlayerPrevAnimation = {0,0,0,0}
 
 --Addresses
-local u32 Player1Address = 0
-local u32 Player2Address = 0
-local u32 Player3Address = 0
-local u32 Player4Address = 0
+local u32 PlayerAddress = {0,0,0,0,0,0,0,0}
 
 
-local AnimatePlayerMoveX = 0
-local AnimatePlayerMoveY = 0
-
-local NewMapNewX = 0
-local NewMapNewY = 0
-			
 local FFTimer = 0
 local FFTimer2 = 0
 local ScreenData = 0
@@ -213,16 +128,16 @@ local u32 Var8000Adr = {}
 local Startvaraddress = 0
 local TextSpeedWait = 0
 local OtherPlayerHasCancelled = 0
-local TradeVars = {0,0,0,0,0}
+local TradeVars = {0,0,0,0,"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"}
 local EnemyTradeVars = {0,0,0,0,0}
 local BattleVars = {0,0,0,0,0,0,0,0,0,0,0}
 local EnemyBattleVars = {0,0,0,0,0,0,0,0,0,0,0}
 local BufferVars = {0,0,0}
-TradeVars[5] = 1000000000100000000010000000001000000000
+TradeVars[5] = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
 
 
-					--Decryption for positioning/small packetts
-					local ReceiveDataSmall = {}
+--Decryption for positioning/small packetts
+local ReceiveDataSmall = {}
 					
 --Debug time is how long in frames each message should show. once every 300 frames, or 5 seconds, should be plenty
 local DebugTime = 300
@@ -233,7 +148,7 @@ local TempVar2 = 0
 local TempVar3 = 0
 
 function ClearAllVar()
-
+	local MultFlags = 0
 	LockFromScript = 0
 	
 	 GameID = ""
@@ -241,116 +156,26 @@ function ClearAllVar()
 --	 Nickname = ""
 	 ConfirmPackett = 0
 	 EnableScript = false
-	 GameInitializedByteAddress1 = 0
-	 GameInitializedByteAddress2 = 0
-	 GameInitializedByteAddress3 = 0
-
-	 SpriteTempVar0 = 0
-	 SpriteTempVar1 = 0
-
---Map ID
-	 MapAddress = 0
-	 MapAddress2 = 0
---	 PlayerID = 1
+	 
 	 ScriptTime = 0
 	 initialized = 0
 
 --Server Switches
-	 Player1Vis = 1
-	 Player2Vis = 0
-	 Player3Vis = 0
-	 Player4Vis = 0
 
---Player 1
-	 Player1Visible = true
-	 MapID = 0
-	 MapX = 0
-	 MapY = 0
-	 NewMapX = 0
-	 NewMapY = 0
-	 PlayerX = 0
-	 PlayerY = 0
-	 NewMapXPos = 0
-	 NewMapYPos = 0
-	 Facing = 0
-	 PlayerExtra1 = 0
-	 PlayerExtra2 = 0
-	 PlayerExtra3 = 0
-	 PlayerExtra4 = 0
-
---Player 2
-	 Player2Visible = false
-	 MapID2 = 0
-	 MapX2 = 0
-	 MapY2 = 0
-	 NewMapX2 = 0
-	 NewMapY2 = 0
-	 Player2X = 0
-	 Player2Y = 0
-	 NewMapX2Pos = 0
-	 NewMapY2Pos = 0
-	 Facing2 = 0
-	 Player2Extra1 = 0
-	 Player2Extra2 = 0
-
---Player 3
-	 Player3Visible = false
-	 MapID3 = 0
-	 MapX3 = 0
-	 MapY3 = 0
-	 Player3X = 0
-	 Player3Y = 0
-	 NewMapX3 = 0
-	 NewMapY3 = 0
-	 NewMapX3Pos = 0
-	 NewMapY3Pos = 0
-	 Facing3 = 0
-	 Player3Extra1 = 0
-	 Player3Extra2 = 0
-
---Player 4
-	 Player4Visible = false
-	 MapID4 = 0
-	 MapX4 = 0
-	 MapY4 = 0
-	 Player4X = 0
-	 Player4Y = 0
-	 NewMapX4 = 0
-	 NewMapY4 = 0
-	 NewMapX4Pos = 0
-	 NewMapY4Pos = 0
-	 Facing4 = 0
-	 Player4Extra1 = 0
-	 Player4Extra2 = 0
-
---Player char start addresses
-
---Player Stats
-	 PlayerMapID = 0
-	 PlayerMapX = 0
-	 PlayerMapY = 0
-	 PlayerMapXMove = 0
-	 PlayerMapYMove = 0
-	 PlayerMapXMovePrev = 0
-	 PlayerMapYMovePrev = 0
---Add camera movement. from +16 to -16
-	 PlayerXCamera = 0
-	 PlayerYCamera = 0
-	 PlayerFacing = 0
-	 ActualPlayerExtra1 = 0
-	 ActualPlayerExtra2 = 0
 --If 0 then don't render players
 	ScreenData = 0
+	MultiplayerConsoleFlags[1] = 0
+	
+	for i = 1, MaxPlayers do
+		MultFlags = i + 1
+		 PlayerVis[i] = 0
+		 MultiplayerConsoleFlags[MultFlags] = 0
+		 HasErasedPlayer[i] = false
+		if i ~= PlayerID and PlayerIDNick[i] ~= "None" then
+			RemovePlayerFromConsole(i)
+		end
+	end
 
-
---Debug time is how long in frames each message should show. once every 300 frames, or 5 seconds, should be plenty
-	DebugTime = 300
-	DebugTime2 = 30
-	DebugTime3 = 1
-	TempVar1 = 0
-	TempVar2 = 0
-	TempVar3 = 0
-	 
 end
 
 
@@ -412,12 +237,13 @@ end
 
 --To fit everything in 1 file, I must unfortunately clog this file with a lot of sprite data. Luckily, this does not lag the game. It is just hard to read.
 --Also, if you are looking at this, then I am sorry. Truly      -TheHunterManX
-function createChars(StartAddressNo, SpriteID, SpriteNo)
-	--0 = Tile 184, 1 = Tile 188, etc...
-	--Tile number 184 = Player1
-	--Tile number 188 = Player2
-	--Tile number 192 = Player3
-	--Tile number 196 = Player4
+--IsBiking is temporary and is used for drawing the extra symbol
+function createChars(StartAddressNo, SpriteID, SpriteNo, IsBiking)
+	--0 = Tile 190, 1 = Tile 185, etc...
+	--Tile number 190 = Player1
+	--Tile number 185 = Player2
+	--Tile number 180 = Player3
+	--Tile number 175 = Player4
 	--First will be the 4 bytes, or 32 bits
 	--SpriteID means a sprite from the chart below
 	--1 = Side Left (Right must be set with facing variable)
@@ -431,9 +257,12 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 	--28-33 = Surfing stuff
 	
 	
+	
 	--Start address. 100745216 = 06014000 = 184th tile. can safely use 32.
+	--CHANGE 100746752 = 190th tile = 2608
 	--Because the actual data doesn't start until 06013850, we will skip 50 hexbytes, or 80 decibytes
-	local ActualAddress = 100745216 + (StartAddressNo * 1024) + 80
+	local ActualAddress = (100746752 - (StartAddressNo * 1280)) + 80
+	if ScreenData ~= 0 then
 	--Firered Male Sprite
 	if SpriteNo == 0 then
 		if SpriteID == 1 then
@@ -8584,6 +8413,21 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 			--End of block
 		elseif SpriteID == 34 then
 		--Surf sit down
+		SpriteTempVar0 = ActualAddress - 20 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 16
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 12 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 8 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
 		SpriteTempVar0 = ActualAddress 
  		SpriteTempVar1 = 2290614272
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
@@ -8719,6 +8563,21 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 			--End of block
 		elseif SpriteID == 35 then
 		--Surf sit up
+		SpriteTempVar0 = ActualAddress - 20 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 16
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 12 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 8 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
 		SpriteTempVar0 = ActualAddress 
  		SpriteTempVar1 = 2290614272
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
@@ -8854,6 +8713,21 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 			--End of block
 		elseif SpriteID == 36 then
 		--Surf sit side
+		SpriteTempVar0 = ActualAddress - 20 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 16
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 12 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 8 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
 		SpriteTempVar0 = ActualAddress 
  		SpriteTempVar1 = 2290089984
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
@@ -17146,6 +17020,21 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 			--End of block
 		elseif SpriteID == 34 then
 		--Surf sit down
+		SpriteTempVar0 = ActualAddress - 20 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 16
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 12 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 8 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
 		SpriteTempVar0 = ActualAddress 
  		SpriteTempVar1 = 1717960704
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
@@ -17281,6 +17170,21 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 			--End of block
 		elseif SpriteID == 35 then
 		--Surf sit up
+		SpriteTempVar0 = ActualAddress - 20 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 16
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 12 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 8 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
 		SpriteTempVar0 = ActualAddress 
  		SpriteTempVar1 = 1717960704
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
@@ -17416,6 +17320,21 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 			--End of block
 		elseif SpriteID == 36 then
 		--Surf sit side
+		SpriteTempVar0 = ActualAddress - 20 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 16
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 12 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 8 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
+		SpriteTempVar0 = ActualAddress - 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1)
 		SpriteTempVar0 = ActualAddress 
  		SpriteTempVar1 = 1717960704
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
@@ -17550,6 +17469,108 @@ function createChars(StartAddressNo, SpriteID, SpriteNo)
 		emu:write32(SpriteTempVar0, SpriteTempVar1) 
 			--End of block
 		end
+		--Gender Neutral Sprites
+	elseif SpriteNo == 2 then
+		--Battle Icon 1
+		if SpriteID == 1 then
+		SpriteTempVar0 = ActualAddress + 256 + (IsBiking * 256) - 80
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65280
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1023744
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16379904
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 262078464
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4193255424
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 2667577344
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1044480
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1023744
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 63984
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 3999
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 249
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 15
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4193320704
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 262143744
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16773120
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 268435200
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 267452400
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 4080
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1044729
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1048479
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 65520
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 1048575
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16773375
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 16711680
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		SpriteTempVar0 = SpriteTempVar0 + 4 
+ 		SpriteTempVar1 = 0
+		emu:write32(SpriteTempVar0, SpriteTempVar1) 
+		end
+	end
 	end
 end
 
@@ -17667,7 +17688,7 @@ function Loadscript(ScriptNo)
 			--Convert 4-byte buffer to readable bytes in case its needed
 				TextToNum = 0
 				for i = 1, 4 do
-					NickNameNum = string.sub(Player2ID,i,i)
+					NickNameNum = string.sub(PlayerIDNick[PlayerTalkingID],i,i)
 					NickNameNum = string.byte(NickNameNum)
 					NickNameNum = tonumber(NickNameNum)
 					if NickNameNum > 64 and NickNameNum < 93 then
@@ -18930,7 +18951,7 @@ function SendMultiplayerPackets(Offset, size, Socket)
 	if Offset == 0 then Offset = 40099328 end
 	local ModifiedRead = ""
 	if size > 0 then
-		CreatePackettSpecial("SLNK",Player2,size)
+		CreatePackettSpecial("SLNK",Socket,size)
 		for i = 1, size do
 			--Inverse of i, size remaining. 1 = last. Also size represents hex bytes, which goes up to 255 in decimal, so we triple it.
 			ModifiedSize = size - i + 1
@@ -19122,7 +19143,7 @@ function BattlescriptClassic()
 			--	BattleVars[13] = ReadBuffers()
 			--	ConsoleForText:print("First")
 			-- SEND DATA
-				CreatePackettSpecial("BAT2", Player2)
+				CreatePackettSpecial("BAT2", Players[PlayerTalkingID])
 				
 			--Animate
 			elseif BattleVars[7] == 1 and EnemyBattleVars[7] == 1 and TurnTime == 0 then
@@ -19190,7 +19211,7 @@ function BattlescriptClassic()
 	if BattleVars[1] >= 2 and BattleVars[3] == 1 then LockFromScript = 0 end
 	
 	
-	if SendTimer == 0 then CreatePackettSpecial("BATT", Player2) end
+	if SendTimer == 0 then CreatePackettSpecial("BATT", Players[PlayerTalkingID]) end
 end
 
 function WriteBuffers(BufferOffset, BufferVar, Length)
@@ -19247,19 +19268,37 @@ function Tradescript()
 	local Buffer1 = 33692880
 	local Buffer2 = 33692912
 	local Buffer3 = 33692932
-
+	
+	
+	
+	if TradeVars[1] == 0 and TradeVars[4] == 0 and TradeVars[3] == 0 and EnemyTradeVars[3] == 0 then
+		OtherPlayerHasCancelled = 0
+		TradeVars[3] = 1
+		Loadscript(4)
+	elseif TradeVars[1] == 0 and TradeVars[4] == 0 and TradeVars[3] == 0 and EnemyTradeVars[3] > 0 then
+		TradeVars[3] = 1
+		TradeVars[4] = 1
+		Loadscript(14)
+	elseif TradeVars[1] == 0 and TradeVars[4] == 0 and EnemyTradeVars[3] > 0 and TradeVars[3] > 0 then
+		TradeVars[4] = 1
+		Loadscript(14)
 
 --	if TempVar2 == 0 then ConsoleForText:print("1: " .. TradeVars[1] .. " 8001: " .. Var8000[2] .. " OtherPlayerHasCancelled: " .. OtherPlayerHasCancelled .. " EnemyTradeVars[1]: " .. EnemyTradeVars[1]) end
 
 	--Text is finished before trade
-	if Var8000[2] ~= 0 and TradeVars[1] == 0 then
+	elseif Var8000[2] ~= 0 and TradeVars[4] == 1 and TradeVars[1] == 0 then
 		TradeVars[1] = 1
+		TradeVars[2] = 0
+		TradeVars[3] = 0
+		TradeVars[4] = 0
+		Var8000[1] = 0
+		Var8000[2] = 0
 		Loadscript(12)
 	
 	--You have canceled or have not selected a valid pokemon slot
 	elseif Var8000[2] == 1 and TradeVars[1] == 1 then
 		Loadscript(16)
-		SendData("CTRA",Player2)
+		SendData("CTRA",Players[PlayerTalkingID])
 		LockFromScript = 0
 		TradeVars[1] = 0
 		TradeVars[2] = 0
@@ -19313,7 +19352,7 @@ function Tradescript()
 	elseif TradeVars[1] == 3 then
 		--If you decline
 		if Var8000[2] == 1 then
-			SendData("ROFF", Player2)
+			SendData("ROFF", Players[PlayerTalkingID])
 			Loadscript(16)
 			LockFromScript = 7
 			TradeVars[1] = 0
@@ -19380,13 +19419,12 @@ function Tradescript()
 			EnemyTradeVars[1] = 0
 			EnemyTradeVars[2] = 0
 			EnemyTradeVars[3] = 0
-			EnemyTradeVars[4] = 0
 			EnemyTradeVars[5] = 0
 			LockFromScript = 0
 		end
 	end
 	
-	if SendTimer == 0 then CreatePackettSpecial("TRAD", Player2) end
+	if SendTimer == 0 then CreatePackettSpecial("TRAD", Players[PlayerTalkingID]) end
 end
 		--	if Var8000[2] ~= 0 then
 		--		Loadscript(16)
@@ -19396,802 +19434,290 @@ end
 		--		TradeVars[2] = 0
 		--		TradeVars[3] = 0
 
-function FixPositionPlayer1()
-	--Fix values
-	if NewMapX > 9 then NewMapX = NewMapX - 10 end
-	if NewMapY > 9 then NewMapY = NewMapY - 10 end
-	if MapXPrev > 9 then MapXPrev = MapXPrev - 10 end
-	if MapYPrev > 9 then MapYPrev = MapYPrev - 10 end
-	PlayerExtra1 = PlayerExtra1 - 10
-	PlayerExtra2 = PlayerExtra2 - 10
-end
-function FixPositionPlayer2()
-	--Fix values
-	if NewMapX2 > 9 then NewMapX2 = NewMapX2 - 10 end
-	if NewMapY2 > 9 then NewMapY2 = NewMapY2 - 10 end
-	Player2Extra1 = Player2Extra1 - 10
-	Player2Extra2 = Player2Extra2 - 10
-end
-function FixPositionPlayer3()
-	--Fix values
-end
-function FixPositionPlayer4()
-	--Fix values
-end
-
-function FixPositionActualPlayer1()
-	--Fix values
-	if MapX > 9 then MapX = MapX - 10 end
-	if MapY > 9 then MapY = MapY - 10 end
-	PlayerExtra1 = PlayerExtra1 - 10
-	PlayerExtra2 = PlayerExtra2 - 10
-end
-function FixPositionActualPlayer2()
-	--Fix values
-	if MapX2 > 9 then MapX2 = MapX2 - 10 end
-	if MapY2 > 9 then MapY2 = MapY2 - 10 end
-	Player2Extra1 = Player2Extra1 - 10
-	Player2Extra2 = Player2Extra2 - 10
-end
-function FixPositionActualPlayer3()
-	--Fix values
-	if MapX3 > 9 then MapX3 = MapX3 - 10 end
-	if MapY3 > 9 then MapY3 = MapY3 - 10 end
-	Player3Extra1 = Player3Extra1 - 10
-	Player3Extra2 = Player3Extra2 - 10
-end
-function FixPositionActualPlayer4()
-	--Fix values
-	if MapX4 > 9 then MapX4 = MapX4 - 10 end
-	if MapY4 > 9 then MapY4 = MapY4 - 10 end
-	Player4Extra1 = Player4Extra1 - 10
-	Player4Extra2 = Player4Extra2 - 10
-end
-function FixAllPositions()
-	FixPositionActualPlayer1()
-	FixPositionActualPlayer2()
-	FixPositionActualPlayer3()
-	FixPositionActualPlayer4()
-end
-
-function FixSentPositions()
-	if PlayerID ~= 1 then FixPositionPlayer1() end
-	if PlayerID ~= 2 then FixPositionPlayer2() end
-	if PlayerID ~= 3 then FixPositionPlayer3() end
-	if PlayerID ~= 4 then FixPositionPlayer4() end
-end
-
-function GetPlayerCamera(ResetCamera)
-	local u32 PlayerMapXMoveAddress = 0
-	local u32 PlayerMapYMoveAddress = 0
-		if GameID == "BPR1" or GameID == "BPR2" then
-			--Addresses for Firered
-			PlayerMapXMoveAddress = 33687132
-			PlayerMapYMoveAddress = 33687134
-		elseif GameID == "BPG1" or GameID == "BPG2"  then
-			--Addresses for Leafgreen
-			PlayerMapXMoveAddress = 33687132
-			PlayerMapYMoveAddress = 33687134
-		end
-		
-			PlayerMapXMovePrev = PlayerMapXMove
-			PlayerMapYMovePrev = PlayerMapYMove
-			PlayerMapXMove = emu:read16(PlayerMapXMoveAddress)
-			PlayerMapYMove = emu:read16(PlayerMapYMoveAddress)
-			
-		if ResetCamera == 1 then
-		--	if PlayerMapX > 2 then
-	--		PlayerXCamera2 = PlayerXCamera2 - 16
-		--	elseif PlayerMapX < 3 then
-		--	PlayerXCamera2 = PlayerXCamera2 + 16
-		--	elseif PlayerMapY > 1 then
-		--	PlayerYCamera2 = PlayerYCamera2 - 16
-		--	elseif PlayerMapY < 2 then
-		--	PlayerYCamera2 = PlayerYCamera2 + 16
-		--	end
-		end
-end
-
-function HidePlayers()
-	MapID2 = tonumber(MapID2)
-	MapID3 = tonumber(MapID3)
-	MapID4 = tonumber(MapID4)
-	local TempMapStuff = tonumber(PlayerMapID)
-	local PlayerCurrentMap = 0
-	local PlayerPrevMap = 0
-	local PlayerConnectionMap = 0
-	local MAXX = 0
-	local MAXY = 0
-	local CURRX = 0
-	local CURRY = 0
-	local PlayerMAXX = 0
-	local PlayerMAXY = 0
-	local PlayerCURRX = 0
-	local PlayerCURRY = 0
-	local PlayerVis = 0
-	local PlayerDir = 0
-	local PlayerDirPrev = 0
-	
-	if TempMapStuff ~= 0 then
-		if PlayerID == 1 then
-			PlayerCurrentMap = MapID
-			PlayerPrevMap = NewMapConnectPrev
-			PlayerConnectionMap = NewMapConnect
-			PlayerMAXX = MapXPrev
-			PlayerMAXY = MapYPrev
-			PlayerCURRX = MapStartX
-			PlayerCURRY = MapStartY
-			PlayerVis = Player1Vis
-			PlayerDir = PlayerDirection
-			PlayerDirPrev = PlayerDirectionPrev
-				
-		elseif PlayerID == 2 then
-			PlayerCurrentMap = MapID2
-			PlayerPrevMap = NewMapConnect2Prev
-			PlayerConnectionMap = NewMapConnect2
-			PlayerMAXX = MapX2Prev
-			PlayerMAXY = MapY2Prev
-			PlayerCURRX = MapStartX2
-			PlayerCURRY = MapStartY2
-			PlayerVis = Player2Vis
-			PlayerDir = Player2Direction
-			PlayerDirPrev = Player2DirectionPrev
-		elseif PlayerID ~= 3 then
-		elseif PlayerID ~= 4 then
-		end
-		
-		if PlayerID ~= 1 then
-			if PlayerMapID == MapID then
-				if PlayerXCamera2 > 16 then PlayerXCamera2 = 16 end
-				if PlayerXCamera2 < -16 then PlayerXCamera2 = -16 end
-				if PlayerYCamera2 > 16 then PlayerYCamera2 = 16 end
-				if PlayerYCamera2 < -16 then PlayerYCamera2 = -16 end
-				if PlayerXCamera2 > 0 then PlayerXCamera2 = PlayerXCamera2 - 1 Player1Vis = 0
-				elseif PlayerXCamera2 < 0 then PlayerXCamera2 = PlayerXCamera2 + 1 Player1Vis = 0 end
-				if PlayerYCamera2 > 0 then PlayerYCamera2 = PlayerYCamera2 - 1 Player1Vis = 0
-				elseif PlayerYCamera2 < 0 then PlayerYCamera2 = PlayerYCamera2 + 1 Player1Vis = 0 end
-				if PlayerXCamera2 == 0 and PlayerYCamera2 == 0 then Player1Vis = 1 end
-				PlayerDirectionPrev = 0
-				if ActualPlayerDirectionPrev ~= 0 then
-					if PlayerNewMap ~= 0 then
-				--		ConsoleForText:print("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
-						--Up
-						if ActualPlayerDirectionPrev == 1 then
-							NewMapNewX = -1
-						--Down
-						elseif ActualPlayerDirectionPrev == 2 then
-							NewMapNewX = 1
-						--Left
-						elseif ActualPlayerDirectionPrev == 3 then
-							NewMapNewY = -1
-						--Right
-						elseif ActualPlayerDirectionPrev == 4 then
-							NewMapNewY = 1
-						end
-					end
-					ActualPlayerDirectionPrev = 0
+function RenderPlayersOnDifferentMap()
+	--if MapChange[1] ~= 0 then console:log("MAP CHANGE PLAYER 1") MapChange[1] = 0 end
+	--if MapChange[2] ~= 0 then console:log("MAP CHANGE PLAYER 2") MapChange[2] = 0 end
+	for i = 1, MaxPlayers do
+		if PlayerID ~= i and PlayerIDNick[i] ~= "None" then
+			if PlayerMapID == CurrentMapID[i] then
+				PlayerVis[i] = 1
+				DifferentMapX[i] = 0
+				DifferentMapY[i] = 0
+				MapChange[i] = 0
+			elseif (PlayerMapIDPrev == CurrentMapID[i] or PlayerMapID == PreviousMapID[i]) and MapEntranceType[i] == 0 then
+				PlayerVis[i] = 1
+				if MapChange[i] == 1 then
+					DifferentMapX[i] = ((PreviousX[i] - StartX[i]) * 16)
+					DifferentMapY[i] = ((PreviousY[i] - StartY[i]) * 16)
 				end
-		--		if TempVar2 == 0 then ConsoleForText:print("Player 2 and player 1 same map") end
-			elseif (PlayerMapID == NewMapConnectPrev and NewMapConnect == 1) or (PlayerPrevMap == MapID and PlayerConnectionMap == 1) then
-				
-						
-					--	if TempVar2 == 0 then ConsoleForText:print("Test 2") end
-						if (PlayerMapID == NewMapConnectPrev and PlayerDirectionPrev ~= 0 and NewMapConnect == 1) then MAXX = MapXPrev CURRX = MapStartX MAXY = MapYPrev CURRY = MapStartY
-						else MAXX = PlayerMAXX CURRX = PlayerCURRX MAXY = PlayerMAXY CURRY = PlayerCURRY
-						end
-						Player1Vis = 1
-						
-				--		if TempVar2 == 0 then ConsoleForText:print("VARS: " .. PlayerDirectionPrev .. " " .. MAXY .. " " .. CURRY) end
-											--Down
-						if PlayerDirectionPrev == 4 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							end
-						--Up
-						elseif PlayerDirectionPrev == 3 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							end
-						--Right
-						elseif PlayerDirectionPrev == 1 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							end
-						--Left
-						elseif PlayerDirectionPrev == 2 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							end
-						end
-
-				--		if TempVar2 == 0 then ConsoleForText:print("Test 3") end
-					
-					--IF PLAYER UPDATES MAP
-					
-					--Down (P2 UP)
-					if ActualPlayerDirectionPrev == 4 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16 -16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-						end
-					--Up (P2 DOWN)
-					elseif ActualPlayerDirectionPrev == 3 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16 +16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-						end
-					--Right (P2 LEFT)
-					elseif ActualPlayerDirectionPrev == 2 then
-				--			ConsoleForText:print("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16 -16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-						end
-					--Left (P2 RIGHT)
-					elseif ActualPlayerDirectionPrev == 1 then
-				--			ConsoleForText:print("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16 +16
-						end
-					end
-			--			if TempVar2 == 0 then ConsoleForText:print("Test 4") end
 			else
-				Player1Vis = 0
+				PlayerVis[i] = 0
+				DifferentMapX[i] = 0
+				DifferentMapY[i] = 0
+				MapChange[i] = 0
 			end
 		end
-		if PlayerID ~= 2 then
-			if PlayerMapID == MapID2 then
-				if PlayerXCamera2 > 16 then PlayerXCamera2 = 16 end
-				if PlayerXCamera2 < -16 then PlayerXCamera2 = -16 end
-				if PlayerYCamera2 > 16 then PlayerYCamera2 = 16 end
-				if PlayerYCamera2 < -16 then PlayerYCamera2 = -16 end
-				if PlayerXCamera2 > 0 then PlayerXCamera2 = PlayerXCamera2 - 1 Player2Vis = 0
-				elseif PlayerXCamera2 < 0 then PlayerXCamera2 = PlayerXCamera2 + 1 Player2Vis = 0 end
-				if PlayerYCamera2 > 0 then PlayerYCamera2 = PlayerYCamera2 - 1 Player2Vis = 0
-				elseif PlayerYCamera2 < 0 then PlayerYCamera2 = PlayerYCamera2 + 1 Player2Vis = 0 end
-				if PlayerXCamera2 == 0 and PlayerYCamera2 == 0 then Player2Vis = 1 end
-				Player2DirectionPrev = 0
-				if ActualPlayerDirectionPrev ~= 0 then
-					if PlayerNewMap ~= 0 then
-				--		ConsoleForText:print("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
-						--Up
-						if ActualPlayerDirectionPrev == 1 then
-							NewMapNewX = -1
-						--Down
-						elseif ActualPlayerDirectionPrev == 2 then
-							NewMapNewX = 1
-						--Left
-						elseif ActualPlayerDirectionPrev == 3 then
-							NewMapNewY = -1
-						--Right
-						elseif ActualPlayerDirectionPrev == 4 then
-							NewMapNewY = 1
-						end
-					end
-					ActualPlayerDirectionPrev = 0
-				end
-			--	if TempVar2 == 0 then ConsoleForText:print("Player 2 and player 1 same map") end
-			--			if TempVar2 == 0 then ConsoleForText:print("TEST1") end
-			elseif (PlayerMapID == NewMapConnect2Prev and NewMapConnect2 == 1) or (PlayerPrevMap == MapID2 and PlayerConnectionMap == 1) then
-					Player2Vis = 1
-											--Down
-				--		if TempVar2 == 0 then ConsoleForText:print("TEST2") end
-						if (PlayerMapID == NewMapConnect2Prev and Player2DirectionPrev ~= 0 and NewMapConnect2 == 1) then MAXX = MapX2Prev CURRX = MapStartX2 MAXY = MapY2Prev CURRY = MapStartY2
-						else MAXX = PlayerMAXX CURRX = PlayerCURRX MAXY = PlayerMAXY CURRY = PlayerCURRY
-						end
-					--	if TempVar2 == 0 then ConsoleForText:print("TEST3") end
-					--	if TempVar2 == 0 then ConsoleForText:print("MAXY: " .. MAXY .. " CURRY: " .. CURRY .. " Dir: " .. Player2DirectionPrev) end
-						if Player2DirectionPrev == 4 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							end
-						--Up
-						elseif Player2DirectionPrev == 3 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							end
-						--Right
-						elseif Player2DirectionPrev == 1 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							end
-						--Left
-						elseif Player2DirectionPrev == 2 then
-					--		ConsoleForText:print("P2 LEFT")
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * 16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * 16
-							end
-						end
-
-					
-					--IF PLAYER UPDATES MAP
-					
-					--Down (P2 UP)
-					if ActualPlayerDirectionPrev == 4 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16 -16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-						end
-					--Up (P2 DOWN)
-					elseif ActualPlayerDirectionPrev == 3 then
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16 +16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-						end
-					--Right (P2 LEFT)
-					elseif ActualPlayerDirectionPrev == 2 then
-				--			ConsoleForText:print("MAXX: " .. MAXX .. " CURRX: " .. CURRX)
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16 -16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-						end
-					--Left (P2 RIGHT)
-					elseif ActualPlayerDirectionPrev == 1 then
-					--		ConsoleForText:print("P1 LEFT")
-							if MAXY > CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							elseif MAXY < CURRY then PlayerYCamera2 = (MAXY - CURRY) * -16
-							end
-							if MAXX > CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16
-							elseif MAXX < CURRX then PlayerXCamera2 = (MAXX - CURRX) * -16 +16
-						end
-					end
-			else
-		--		if TempVar2 == 0 then ConsoleForText:print("PlayerMapID" .. PlayerMapID .. "NewMapConnect2Prev: " .. NewMapConnect2Prev .. " " .. NewMapConnect2) end
-				Player2Vis = 0
-			end
-		end
-		if PlayerID ~= 3 then
-		end
-		if PlayerID ~= 4 then
-		end
-	else
-		Player2Vis = 0
-		Player3Vis = 0
-		Player4Vis = 0
 	end
 end
 
 function GetPosition()
 	local u32 BikeAddress = 0
+	local u32 MapAddress = 0
 	local u32 PrevMapIDAddress = 0
 	local u32 ConnectionTypeAddress = 0
-	local u32 NewMapXAddress = 0
-	local u32 NewMapYAddress = 0
+	local u32 PlayerXAddress = 0
+	local u32 PlayerYAddress = 0
+	local u32 PlayerFaceAddress = 0
 	local Bike = 0
 	if GameID == "BPR1" or GameID == "BPR2" then
 		--Addresses for Firered
 		PlayerXAddress = 33779272
 		PlayerYAddress = 33779274
-		NewMapXAddress = 33779276
-		NewMapYAddress = 33779278
 		PlayerFaceAddress = 33779284
 		MapAddress = 33813416
 		BikeAddress = 33687112
 		PrevMapIDAddress = 33813418
 		ConnectionTypeAddress = 33785351
+		Bike = emu:read16(BikeAddress)
+		if Bike > 3000 then Bike = Bike - 3352 end
 	elseif GameID == "BPG1" or GameID == "BPG2" then
 		--Addresses for Leafgreen
 		PlayerXAddress = 33779272
 		PlayerYAddress = 33779274
-		NewMapXAddress = 33779276
-		NewMapYAddress = 33779278
 		PlayerFaceAddress = 33779284
 		MapAddress = 33813416
 		BikeAddress = 33687112
 		PrevMapIDAddress = 33813418
 		ConnectionTypeAddress = 33785351
-	end
-	
-	
-		PlayerMapX = emu:read16(PlayerXAddress)
-		PlayerMapY = emu:read16(PlayerYAddress)
-		PlayerFacing = emu:read8(PlayerFaceAddress)
 		Bike = emu:read16(BikeAddress)
-		Bike = tonumber(Bike)
-		local TempMapData = emu:read16(MapAddress)
-		TempMapData = tonumber(TempMapData)
-		TempMapData = TempMapData + 100000
-		if TempMapData ~= PlayerMapID then
-				GetPlayerCamera(1)
-			--ConsoleForText:print("New map detected! Reloading sprites...")
-			--Starts at 100733010, each number will add it by 256 ex. 1 = 100733266
-			--HandleSprites()
-		else
-		end
-		PlayerMapID = TempMapData
-		--Prev map
-		TempMapData = emu:read16(PrevMapIDAddress)
-		TempMapData = tonumber(TempMapData)
-		TempMapData = TempMapData + 100000
-		
-	if PlayerID == 1 then
-		NewMapConnectPrev = tonumber(TempMapData)
-		--1 if travel, otherwise 0 like teleport
-		NewMapConnect = emu:read8(ConnectionTypeAddress)
-		NewMapConnect = tonumber(NewMapConnect)
-		
-		if NewMapConnect == 0 then NewMapConnect = 1
-		else NewMapConnect = 0
-		end
-		--Male sprite
-		if MapID ~= PlayerMapID then
-			MapXPrev = tonumber(NewMapX)
-			MapYPrev = tonumber(NewMapY)
-	--		ConsoleForText:print("MAPX: " .. MapX .. " PlayerMapX: " .. PlayerMapX)
-		end
-		NewMapX = emu:read16(NewMapXAddress)
-		NewMapY = emu:read16(NewMapYAddress)
-		MapX = emu:read16(PlayerXAddress)
-		if MapX > 99 then MapX = 99 end
-		MapY = emu:read16(PlayerYAddress)
-		if MapY > 99 then MapY = 99 end
-	--	if TempVar2 == 0 then ConsoleForText:print("BIKE: " .. Bike) end
-		--Male Firered Sprite from 1.0, 1.1, and leafgreen
-		if ((Bike == 160 or Bike == 272) or (Bike == 128 or Bike == 240)) then
-			PlayerExtra2 = 0
-			Bike = 0
-		--	if TempVar2 == 0 then ConsoleForText:print("Male on Foot") end
-		--Male Firered Biking Sprite
-		elseif (Bike == 320 or Bike == 432 or Bike == 288 or Bike == 400) then
-			PlayerExtra2 = 0
-			Bike = 1
-		--	if TempVar2 == 0 then ConsoleForText:print("Male on Bike") end
-		--Male Firered Surfing Sprite
-		elseif (Bike == 624 or Bike == 736 or Bike == 592 or Bike == 704) then
-			PlayerExtra2 = 0
-			Bike = 2
-		--Female sprite
-		elseif ((Bike == 392 or Bike == 504) or (Bike == 360 or Bike == 472)) then
-			PlayerExtra2 = 1
-			Bike = 0
-		--	if TempVar2 == 0 then ConsoleForText:print("Female on Foot") end
-		--Female Biking sprite
-		elseif ((Bike == 552 or Bike == 664) or (Bike == 520 or Bike == 632)) then
-			PlayerExtra2 = 1
-			Bike = 1
-		--Female Firered Surfing Sprite
-		elseif (Bike == 720 or Bike == 832 or Bike == 688 or Bike == 800) then
-			PlayerExtra2 = 1
-			Bike = 2
-		else
-		--If in bag when connecting will automatically be firered male
-		--	if TempVar2 == 0 then ConsoleForText:print("Bag/Unknown") end
-		end
-		Facing = tonumber(PlayerFacing)
-		if Bike == 2 then
-			--Facing
-			if Facing == 0 then PlayerExtra1 = 33 PlayerDirection = 4 end
-			if Facing == 1 then PlayerExtra1 = 34 PlayerDirection = 3 end
-			if Facing == 2 then PlayerExtra1 = 35 PlayerDirection = 1 end
-			if Facing == 3 then PlayerExtra1 = 36 PlayerDirection = 2 end
-			--Surfing
-			if Facing == 29 then PlayerExtra1 = 37 PlayerDirection = 4 end
-			if Facing == 30 then PlayerExtra1 = 38 PlayerDirection = 3 end
-			if Facing == 31 then PlayerExtra1 = 39 PlayerDirection = 1 end
-			if Facing == 32 then PlayerExtra1 = 40 PlayerDirection = 2 end
-			--Turning
-			if Facing == 41 then PlayerExtra1 = 33 PlayerDirection = 4 end
-			if Facing == 42 then PlayerExtra1 = 34 PlayerDirection = 3 end
-			if Facing == 43 then PlayerExtra1 = 35 PlayerDirection = 1 end
-			if Facing == 44 then PlayerExtra1 = 36 PlayerDirection = 2 end
-			--hitting a wall
-			if Facing == 33 then PlayerExtra1 = 33 PlayerDirection = 4 end
-			if Facing == 34 then PlayerExtra1 = 34 PlayerDirection = 3 end
-			if Facing == 35 then PlayerExtra1 = 35 PlayerDirection = 1 end
-			if Facing == 36 then PlayerExtra1 = 36 PlayerDirection = 2 end
-		elseif Bike == 1 then
-			if Facing == 0 then PlayerExtra1 = 17 PlayerDirection = 4 end
-			if Facing == 1 then PlayerExtra1 = 18 PlayerDirection = 3 end
-			if Facing == 2 then PlayerExtra1 = 19 PlayerDirection = 1 end
-			if Facing == 3 then PlayerExtra1 = 20 PlayerDirection = 2 end
-			--Standard speed
-			if Facing == 49 then PlayerExtra1 = 21 PlayerDirection = 4 end
-			if Facing == 50 then PlayerExtra1 = 22 PlayerDirection = 3 end
-			if Facing == 51 then PlayerExtra1 = 23 PlayerDirection = 1 end
-			if Facing == 52 then PlayerExtra1 = 24 PlayerDirection = 2 end
-			--In case you use a fast bike
-			if Facing == 61 then PlayerExtra1 = 25 PlayerDirection = 4 end
-			if Facing == 62 then PlayerExtra1 = 26 PlayerDirection = 3 end
-			if Facing == 63 then PlayerExtra1 = 27 PlayerDirection = 1 end
-			if Facing == 64 then PlayerExtra1 = 28 PlayerDirection = 2 end
-			--hitting a wall
-			if Facing == 37 then PlayerExtra1 = 29 PlayerDirection = 4 end
-			if Facing == 38 then PlayerExtra1 = 30 PlayerDirection = 3 end
-			if Facing == 39 then PlayerExtra1 = 31 PlayerDirection = 1 end
-			if Facing == 40 then PlayerExtra1 = 32 PlayerDirection = 2 end
-		else
-			if Facing == 0 then PlayerExtra1 = 1 PlayerDirection = 4 end
-			if Facing == 1 then PlayerExtra1 = 2 PlayerDirection = 3 end
-			if Facing == 2 then PlayerExtra1 = 3 PlayerDirection = 1 end
-			if Facing == 3 then PlayerExtra1 = 4 PlayerDirection = 2 end
-			if Facing == 33 then PlayerExtra1 = 5 PlayerDirection = 4 end
-			if Facing == 34 then PlayerExtra1 = 6 PlayerDirection = 3 end
-			if Facing == 35 then PlayerExtra1 = 7 PlayerDirection = 1 end
-			if Facing == 36 then PlayerExtra1 = 8 PlayerDirection = 2 end
-			if Facing == 37 then PlayerExtra1 = 1 PlayerDirection = 4 end
-			if Facing == 38 then PlayerExtra1 = 2 PlayerDirection = 3 end
-			if Facing == 39 then PlayerExtra1 = 3 PlayerDirection = 1 end
-			if Facing == 40 then PlayerExtra1 = 4 PlayerDirection = 2 end
-			if Facing == 16 then PlayerExtra1 = 5 PlayerDirection = 4 end
-			if Facing == 17 then PlayerExtra1 = 6 PlayerDirection = 3 end
-			if Facing == 18 then PlayerExtra1 = 7 PlayerDirection = 1 end
-			if Facing == 19 then PlayerExtra1 = 8 PlayerDirection = 2 end
-			if Facing == 41 then PlayerExtra1 = 9 PlayerDirection = 4 end
-			if Facing == 42 then PlayerExtra1 = 10 PlayerDirection = 3 end
-			if Facing == 43 then PlayerExtra1 = 11 PlayerDirection = 1 end
-			if Facing == 44 then PlayerExtra1 = 12 PlayerDirection = 2 end
-			if Facing == 61 then PlayerExtra1 = 13 PlayerDirection = 4 end
-			if Facing == 62 then PlayerExtra1 = 14 PlayerDirection = 3 end
-			if Facing == 63 then PlayerExtra1 = 15 PlayerDirection = 1 end
-			if Facing == 64 then PlayerExtra1 = 16 PlayerDirection = 2 end
-		--	if Facing == 255 then PlayerExtra1 = 0 end
-		end
-		ActualPlayerDirection = PlayerDirection
-	--	if TempVar2 == 0 then ConsoleForText:print("MapID: " .. MapID .. "PlayerMapID" .. PlayerMapID) end
-		if PlayerNewMap ~= 0 then
-			if PlayerDirectionPrev == 1 then
-			MapStartX = tonumber(NewMapX)
-			MapStartY = tonumber(NewMapY)
-			MapStartX = MapStartX - 1
-			PlayerNewMap = 0
-			elseif PlayerDirectionPrev == 2 then
-			MapStartX = tonumber(NewMapX)
-			MapStartY = tonumber(NewMapY)
-			MapStartX = MapStartX + 1
-			PlayerNewMap = 0
-			elseif PlayerDirectionPrev == 3 then
-			MapStartX = tonumber(NewMapX)
-			MapStartY = tonumber(NewMapY)
-			MapStartY = MapStartY - 1
-			PlayerNewMap = 0
-			elseif PlayerDirectionPrev == 4 then
-			MapStartX = tonumber(NewMapX)
-			MapStartY = tonumber(NewMapY)
-			MapStartY = MapStartY + 1
-			PlayerNewMap = 0
-			end
-		end
-		if MapID ~= PlayerMapID then
-	--	ConsoleForText:print("NEW MAP!")
-			PlayerDirectionPrev = PlayerDirection
-			ActualPlayerDirectionPrev = ActualPlayerDirection
-			
-			MapStartX = tonumber(NewMapX)
-			MapStartY = tonumber(NewMapY)
-	--		ConsoleForText:print("MAPX: " .. MapX)
-			PlayerNewMap = 1
-			MapID = tonumber(PlayerMapID)
-		end
-	elseif PlayerID == 2 then
-		NewMapConnect2Prev = tonumber(TempMapData)
-		--1 if travel, otherwise 0 like teleport
-		NewMapConnect2 = emu:read8(ConnectionTypeAddress)
-		NewMapConnect2 = tonumber(NewMapConnect2)
-		
-		if NewMapConnect2 == 0 then NewMapConnect2 = 1
-		else NewMapConnect2 = 0
-		end
-		if MapID2 ~= PlayerMapID then
-			MapX2Prev = tonumber(NewMapX2)
-			MapY2Prev = tonumber(NewMapY2)
-		end
-		NewMapX2 = emu:read16(NewMapXAddress)
-		NewMapY2 = emu:read16(NewMapYAddress)
-		MapX2 = emu:read16(PlayerXAddress)
-		if MapX2 > 99 then MapX2 = 99 end
-		MapY2 = emu:read16(PlayerYAddress)
-		if MapY2 > 99 then MapY2 = 99 end
-		Facing2 = tonumber(PlayerFacing)
-		--Male Firered Sprite from 1.0, 1.1, and leafgreen
-		--Male Firered Sprite from 1.0, 1.1, and leafgreen
-		if ((Bike == 160 or Bike == 272) or (Bike == 128 or Bike == 240)) then
-			Player2Extra2 = 0
-			Bike = 0
-		--	if TempVar2 == 0 then ConsoleForText:print("Male on Foot") end
-		--Male Firered Biking Sprite
-		elseif (Bike == 320 or Bike == 432 or Bike == 288 or Bike == 400) then
-			Player2Extra2 = 0
-			Bike = 1
-		--	if TempVar2 == 0 then ConsoleForText:print("Male on Bike") end
-		--Male Firered Surfing Sprite
-		elseif (Bike == 624 or Bike == 736 or Bike == 592 or Bike == 704) then
-			Player2Extra2 = 0
-			Bike = 2
-		--Female sprite
-		elseif ((Bike == 392 or Bike == 504) or (Bike == 360 or Bike == 472)) then
-			Player2Extra2 = 1
-			Bike = 0
-		--	if TempVar2 == 0 then ConsoleForText:print("Female on Foot") end
-		--Female Biking sprite
-		elseif ((Bike == 552 or Bike == 664) or (Bike == 520 or Bike == 632)) then
-			Player2Extra2 = 1
-			Bike = 1
-		--	if TempVar2 == 0 then ConsoleForText:print("Female on Bike") end
-		--Female Firered Surfing Sprite
-		elseif (Bike == 720 or Bike == 832 or Bike == 688 or Bike == 800) then
-			Player2Extra2 = 1
-			Bike = 2
-		else
-		--If in bag when connecting will automatically be firered male
-		--	if TempVar2 == 0 then ConsoleForText:print("Bag/Unknown") end
-		end
-		if Bike == 2 then
-			--Facing
-			if Facing2 == 0 then Player2Extra1 = 33 Player2Direction = 4 end
-			if Facing2 == 1 then Player2Extra1 = 34 Player2Direction = 3 end
-			if Facing2 == 2 then Player2Extra1 = 35 Player2Direction = 1 end
-			if Facing2 == 3 then Player2Extra1 = 36 Player2Direction = 2 end
-			--Surfing
-			if Facing2 == 29 then Player2Extra1 = 37 Player2Direction = 4 end
-			if Facing2 == 30 then Player2Extra1 = 38 Player2Direction = 3 end
-			if Facing2 == 31 then Player2Extra1 = 39 Player2Direction = 1 end
-			if Facing2 == 32 then Player2Extra1 = 40 Player2Direction = 2 end
-			--Turning
-			if Facing2 == 41 then Player2Extra1 = 33 Player2Direction = 4 end
-			if Facing2 == 42 then Player2Extra1 = 34 Player2Direction = 3 end
-			if Facing2 == 43 then Player2Extra1 = 35 Player2Direction = 1 end
-			if Facing2 == 44 then Player2Extra1 = 36 Player2Direction = 2 end
-			--hitting a wall
-			if Facing2 == 33 then Player2Extra1 = 33 Player2Direction = 4 end
-			if Facing2 == 34 then Player2Extra1 = 34 Player2Direction = 3 end
-			if Facing2 == 35 then Player2Extra1 = 35 Player2Direction = 1 end
-			if Facing2 == 36 then Player2Extra1 = 36 Player2Direction = 2 end
-		elseif Bike == 1 then
-			if Facing2 == 0 then Player2Extra1 = 17 Player2Direction = 4 end
-			if Facing2 == 1 then Player2Extra1 = 18 Player2Direction = 3 end
-			if Facing2 == 2 then Player2Extra1 = 19 Player2Direction = 1 end
-			if Facing2 == 3 then Player2Extra1 = 20 Player2Direction = 2 end
-			--Standard speed
-			if Facing2 == 49 then Player2Extra1 = 21 Player2Direction = 4 end
-			if Facing2 == 50 then Player2Extra1 = 22 Player2Direction = 3 end
-			if Facing2 == 51 then Player2Extra1 = 23 Player2Direction = 1 end
-			if Facing2 == 52 then Player2Extra1 = 24 Player2Direction = 2 end
-			--In case you use a fast bike
-			if Facing2 == 61 then Player2Extra1 = 25 Player2Direction = 4 end
-			if Facing2 == 62 then Player2Extra1 = 26 Player2Direction = 3 end
-			if Facing2 == 63 then Player2Extra1 = 27 Player2Direction = 1 end
-			if Facing2 == 64 then Player2Extra1 = 28 Player2Direction = 2 end
-			--hitting a wall
-			if Facing2 == 37 then Player2Extra1 = 29 Player2Direction = 4 end
-			if Facing2 == 38 then Player2Extra1 = 30 Player2Direction = 3 end
-			if Facing2 == 39 then Player2Extra1 = 31 Player2Direction = 1 end
-			if Facing2 == 40 then Player2Extra1 = 32 Player2Direction = 2 end
-		else
-			if Facing2 == 0 then Player2Extra1 = 1 Player2Direction = 4 end
-			if Facing2 == 1 then Player2Extra1 = 2 Player2Direction = 3 end
-			if Facing2 == 2 then Player2Extra1 = 3 Player2Direction = 1 end
-			if Facing2 == 3 then Player2Extra1 = 4 Player2Direction = 2 end
-			if Facing2 == 33 then Player2Extra1 = 5 Player2Direction = 4 end
-			if Facing2 == 34 then Player2Extra1 = 6 Player2Direction = 3 end
-			if Facing2 == 35 then Player2Extra1 = 7 Player2Direction = 1 end
-			if Facing2 == 36 then Player2Extra1 = 8 Player2Direction = 2 end
-			if Facing2 == 37 then Player2Extra1 = 1 Player2Direction = 4 end
-			if Facing2 == 38 then Player2Extra1 = 2 Player2Direction = 3 end
-			if Facing2 == 39 then Player2Extra1 = 3 Player2Direction = 1 end
-			if Facing2 == 40 then Player2Extra1 = 4 Player2Direction = 2 end
-			if Facing2 == 16 then Player2Extra1 = 5 Player2Direction = 4 end
-			if Facing2 == 17 then Player2Extra1 = 6 Player2Direction = 3 end
-			if Facing2 == 18 then Player2Extra1 = 7 Player2Direction = 1 end
-			if Facing2 == 19 then Player2Extra1 = 8 Player2Direction = 2 end
-			if Facing2 == 41 then Player2Extra1 = 9 Player2Direction = 4 end
-			if Facing2 == 42 then Player2Extra1 = 10 Player2Direction = 3 end
-			if Facing2 == 43 then Player2Extra1 = 11 Player2Direction = 1 end
-			if Facing2 == 44 then Player2Extra1 = 12 Player2Direction = 2 end
-			if Facing2 == 61 then Player2Extra1 = 13 Player2Direction = 4 end
-			if Facing2 == 62 then Player2Extra1 = 14 Player2Direction = 3 end
-			if Facing2 == 63 then Player2Extra1 = 15 Player2Direction = 1 end
-			if Facing2 == 64 then Player2Extra1 = 16 Player2Direction = 2 end
-		--	if Facing2 == 255 then Player2Extra1 = 0 end
-		end
-		ActualPlayerDirection = Player2Direction
-	--	if TempVar2 == 0 then ConsoleForText:print("MapID: " .. MapID .. "PlayerMapID" .. PlayerMapID) end
-		if PlayerNewMap ~= 0 then
-			if Player2DirectionPrev == 1 then
-			MapStartX2 = tonumber(NewMapX2)
-			MapStartY2 = tonumber(NewMapY2)
-			MapStartX2 = MapStartX2 - 1
-			PlayerNewMap = 0
-			elseif Player2DirectionPrev == 2 then
-			MapStartX2 = tonumber(NewMapX2)
-			MapStartY2 = tonumber(NewMapY2)
-			MapStartX2 = MapStartX2 + 1
-			PlayerNewMap = 0
-			elseif Player2DirectionPrev == 3 then
-			MapStartX2 = tonumber(NewMapX2)
-			MapStartY2 = tonumber(NewMapY2)
-			MapStartY2 = MapStartY2 - 1
-			PlayerNewMap = 0
-			elseif Player2DirectionPrev == 4 then
-			MapStartX2 = tonumber(NewMapX2)
-			MapStartY2 = tonumber(NewMapY2)
-			MapStartY2 = MapStartY2 + 1
-			PlayerNewMap = 0
-			end
-		end
-		if MapID2 ~= PlayerMapID then
-			Player2DirectionPrev = Player2Direction
-			ActualPlayerDirectionPrev = ActualPlayerDirection
-			MapStartX2 = tonumber(NewMapX2)
-			MapStartY2 = tonumber(NewMapY2)
-			PlayerNewMap = 1
-			MapID2 = tonumber(PlayerMapID)
-		end
-	elseif PlayerID == 3 then
-	elseif PlayerID == 4 then
+		if Bike > 3000 then Bike = Bike - 3320 end
 	end
+	PlayerFacing = emu:read8(PlayerFaceAddress)
+	Facing2[PlayerID] = PlayerFacing + 100
+	--Prev map
+	PlayerMapIDPrev = emu:read16(PrevMapIDAddress)
+	PlayerMapIDPrev = PlayerMapIDPrev + 100000
+	if PlayerMapIDPrev == PlayerMapID then
+		PreviousX[PlayerID] = CurrentX[PlayerID]
+		PreviousY[PlayerID] = CurrentY[PlayerID]
+		PlayerMapEntranceType = emu:read8(ConnectionTypeAddress)
+		if PlayerMapEntranceType > 10 then PlayerMapEntranceType = 9 end
+		PlayerMapChange = 1
+		MapChange[PlayerID] = 1
+	end
+	PlayerMapID = emu:read16(MapAddress)
+	PlayerMapID = PlayerMapID + 100000
+	PlayerMapX = emu:read16(PlayerXAddress)
+	PlayerMapY = emu:read16(PlayerYAddress)
+	PlayerMapX = PlayerMapX + 2000
+	PlayerMapY = PlayerMapY + 2000
+		
+	CurrentX[PlayerID] = PlayerMapX
+	CurrentY[PlayerID] = PlayerMapY
+--	console:log("X: " .. CurrentX[PlayerID])
+	--Male Firered Sprite from 1.0, 1.1, and leafgreen
+	if ((Bike == 160 or Bike == 272) or (Bike == 128 or Bike == 240)) then
+		PlayerExtra2[PlayerID] = 0
+		PlayerExtra3[PlayerID] = 0
+	--	if TempVar2 == 0 then ConsoleForText:print("Male on Foot") end
+	--Male Firered Biking Sprite
+	elseif (Bike == 320 or Bike == 432 or Bike == 288 or Bike == 400) then
+		PlayerExtra2[PlayerID] = 0
+		PlayerExtra3[PlayerID] = 1
+	--	if TempVar2 == 0 then ConsoleForText:print("Male on Bike") end
+	--Male Firered Surfing Sprite
+	elseif (Bike == 624 or Bike == 736 or Bike == 592 or Bike == 704) then
+		PlayerExtra2[PlayerID] = 0
+		PlayerExtra3[PlayerID] = 2
+	--Female sprite
+	elseif ((Bike == 392 or Bike == 504) or (Bike == 360 or Bike == 472)) then
+		PlayerExtra2[PlayerID] = 1
+		PlayerExtra3[PlayerID] = 0
+	--	if TempVar2 == 0 then ConsoleForText:print("Female on Foot") end
+	--Female Biking sprite
+	elseif ((Bike == 552 or Bike == 664) or (Bike == 520 or Bike == 632)) then
+		PlayerExtra2[PlayerID] = 1
+		PlayerExtra3[PlayerID] = 1
+	--	if TempVar2 == 0 then ConsoleForText:print("Female on Bike") end
+	--Female Firered Surfing Sprite
+	elseif (Bike == 720 or Bike == 832 or Bike == 688 or Bike == 800) then
+		PlayerExtra2[PlayerID] = 1
+		PlayerExtra3[PlayerID] = 2
+	else
+	--If in bag when connecting will automatically be firered male
+	--	if TempVar2 == 0 then ConsoleForText:print("Bag/Unknown") end
+	end
+	if PlayerExtra1[PlayerID] ~= 0 then PlayerExtra1[PlayerID] = PlayerExtra1[PlayerID] - 100
+	else PlayerExtra1[PlayerID] = 0
+	end
+	if PlayerExtra3[PlayerID] == 2 then
+		PreviousPlayerDirection = PlayerDirection
+		--Facing
+		if PlayerFacing == 0 then PlayerExtra1[PlayerID] = 33 PlayerDirection = 4 end
+		if PlayerFacing == 1 then PlayerExtra1[PlayerID] = 34 PlayerDirection = 3 end
+		if PlayerFacing == 2 then PlayerExtra1[PlayerID] = 35 PlayerDirection = 1 end
+		if PlayerFacing == 3 then PlayerExtra1[PlayerID] = 36 PlayerDirection = 2 end
+		--Surfing
+		if PlayerFacing == 29 then PlayerExtra1[PlayerID] = 37 PlayerDirection = 4 end
+		if PlayerFacing == 30 then PlayerExtra1[PlayerID] = 38 PlayerDirection = 3 end
+		if PlayerFacing == 31 then PlayerExtra1[PlayerID] = 39 PlayerDirection = 1 end
+		if PlayerFacing == 32 then PlayerExtra1[PlayerID] = 40 PlayerDirection = 2 end
+		--Turning
+		if PlayerFacing == 41 then PlayerExtra1[PlayerID] = 33 PlayerDirection = 4 end
+		if PlayerFacing == 42 then PlayerExtra1[PlayerID] = 34 PlayerDirection = 3 end
+		if PlayerFacing == 43 then PlayerExtra1[PlayerID] = 35 PlayerDirection = 1 end
+		if PlayerFacing == 44 then PlayerExtra1[PlayerID] = 36 PlayerDirection = 2 end
+		--hitting a wall
+		if PlayerFacing == 33 then PlayerExtra1[PlayerID] = 33 PlayerDirection = 4 end
+		if PlayerFacing == 34 then PlayerExtra1[PlayerID] = 34 PlayerDirection = 3 end
+		if PlayerFacing == 35 then PlayerExtra1[PlayerID] = 35 PlayerDirection = 1 end
+		if PlayerFacing == 36 then PlayerExtra1[PlayerID] = 36 PlayerDirection = 2 end
+		--getting on pokemon
+		if PlayerFacing == 70 then PlayerExtra1[PlayerID] = 37 PlayerDirection = 4 end
+		if PlayerFacing == 71 then PlayerExtra1[PlayerID] = 38 PlayerDirection = 3 end
+		if PlayerFacing == 72 then PlayerExtra1[PlayerID] = 39 PlayerDirection = 1 end
+		if PlayerFacing == 73 then PlayerExtra1[PlayerID] = 40 PlayerDirection = 2 end
+		--getting off pokemon
+		if PlayerFacing == 166 then PlayerExtra1[PlayerID] = 5 PlayerDirection = 4 end
+		if PlayerFacing == 167 then PlayerExtra1[PlayerID] = 6 PlayerDirection = 3 end
+		if PlayerFacing == 168 then PlayerExtra1[PlayerID] = 7 PlayerDirection = 1 end
+		if PlayerFacing == 169 then PlayerExtra1[PlayerID] = 8 PlayerDirection = 2 end
+		--calling pokemon out
+		if PlayerFacing == 69 then PlayerExtra1[PlayerID] = 33 PlayerDirection = 4 end
+		
+		if ScreenData == 0 then
+			if PlayerDirection == 4 then PlayerExtra1[PlayerID] = 33 PlayerFacing = 0 end
+			if PlayerDirection == 3 then PlayerExtra1[PlayerID] = 34 PlayerFacing = 1 end
+			if PlayerDirection == 1 then PlayerExtra1[PlayerID] = 35 PlayerFacing = 2 end
+			if PlayerDirection == 2 then PlayerExtra1[PlayerID] = 36 PlayerFacing = 3 end
+		end
+	elseif PlayerExtra3[PlayerID] == 1 then
+		if PlayerFacing == 0 then PlayerExtra1[PlayerID] = 17 PlayerDirection = 4 end
+		if PlayerFacing == 1 then PlayerExtra1[PlayerID] = 18 PlayerDirection = 3 end
+		if PlayerFacing == 2 then PlayerExtra1[PlayerID] = 19 PlayerDirection = 1 end
+		if PlayerFacing == 3 then PlayerExtra1[PlayerID] = 20 PlayerDirection = 2 end
+		--Standard speed
+		if PlayerFacing == 49 then PlayerExtra1[PlayerID] = 21 PlayerDirection = 4 end
+		if PlayerFacing == 50 then PlayerExtra1[PlayerID] = 22 PlayerDirection = 3 end
+		if PlayerFacing == 51 then PlayerExtra1[PlayerID] = 23 PlayerDirection = 1 end
+		if PlayerFacing == 52 then PlayerExtra1[PlayerID] = 24 PlayerDirection = 2 end
+		--In case you use a fast bike
+		if PlayerFacing == 61 then PlayerExtra1[PlayerID] = 25 PlayerDirection = 4 end
+		if PlayerFacing == 62 then PlayerExtra1[PlayerID] = 26 PlayerDirection = 3 end
+		if PlayerFacing == 63 then PlayerExtra1[PlayerID] = 27 PlayerDirection = 1 end
+		if PlayerFacing == 64 then PlayerExtra1[PlayerID] = 28 PlayerDirection = 2 end
+		--hitting a wall
+		if PlayerFacing == 37 then PlayerExtra1[PlayerID] = 29 PlayerDirection = 4 end
+		if PlayerFacing == 38 then PlayerExtra1[PlayerID] = 30 PlayerDirection = 3 end
+		if PlayerFacing == 39 then PlayerExtra1[PlayerID] = 31 PlayerDirection = 1 end
+		if PlayerFacing == 40 then PlayerExtra1[PlayerID] = 32 PlayerDirection = 2 end
+		
+		--calling pokemon out
+		if PlayerFacing == 69 then PlayerExtra1[PlayerID] = 1 PlayerDirection = 4 end
+		
+		if ScreenData == 0 then
+			if PlayerDirection == 4 then PlayerExtra1[PlayerID] = 17 PlayerFacing = 0 end
+			if PlayerDirection == 3 then PlayerExtra1[PlayerID] = 18 PlayerFacing = 1 end
+			if PlayerDirection == 1 then PlayerExtra1[PlayerID] = 19 PlayerFacing = 2 end
+			if PlayerDirection == 2 then PlayerExtra1[PlayerID] = 20 PlayerFacing = 3 end
+		end
+	else
+		--Standing still
+		if PlayerFacing == 0 then PlayerExtra1[PlayerID] = 1 PlayerDirection = 4 end
+		if PlayerFacing == 1 then PlayerExtra1[PlayerID] = 2 PlayerDirection = 3 end
+		if PlayerFacing == 2 then PlayerExtra1[PlayerID] = 3 PlayerDirection = 1 end
+		if PlayerFacing == 3 then PlayerExtra1[PlayerID] = 4 PlayerDirection = 2 end
+		
+		--Hitting stuff
+		if PlayerFacing == 33 then PlayerExtra1[PlayerID] = 1 PlayerDirection = 4 end
+		if PlayerFacing == 34 then PlayerExtra1[PlayerID] = 2 PlayerDirection = 3 end
+		if PlayerFacing == 35 then PlayerExtra1[PlayerID] = 3 PlayerDirection = 1 end
+		if PlayerFacing == 36 then PlayerExtra1[PlayerID] = 4 PlayerDirection = 2 end
+		
+		if PlayerFacing == 37 then PlayerExtra1[PlayerID] = 1 PlayerDirection = 4 end
+		if PlayerFacing == 38 then PlayerExtra1[PlayerID] = 2 PlayerDirection = 3 end
+		if PlayerFacing == 39 then PlayerExtra1[PlayerID] = 3 PlayerDirection = 1 end
+		if PlayerFacing == 40 then PlayerExtra1[PlayerID] = 4 PlayerDirection = 2 end
+		
+		--Walking
+		if PlayerFacing == 16 then PlayerExtra1[PlayerID] = 5 PlayerDirection = 4 end
+		if PlayerFacing == 17 then PlayerExtra1[PlayerID] = 6 PlayerDirection = 3 end
+		if PlayerFacing == 18 then PlayerExtra1[PlayerID] = 7 PlayerDirection = 1 end
+		if PlayerFacing == 19 then PlayerExtra1[PlayerID] = 8 PlayerDirection = 2 end
+		
+		--Jumping over route
+		if PlayerFacing == 20 then PlayerExtra1[PlayerID] = 13 PlayerDirection = 4 end
+		if PlayerFacing == 21 then PlayerExtra1[PlayerID] = 14 PlayerDirection = 3 end
+		if PlayerFacing == 22 then PlayerExtra1[PlayerID] = 15 PlayerDirection = 1 end
+		if PlayerFacing == 23 then PlayerExtra1[PlayerID] = 16 PlayerDirection = 2 end
+		--Turning
+		if PlayerFacing == 41 then PlayerExtra1[PlayerID] = 9 PlayerDirection = 4 end
+		if PlayerFacing == 42 then PlayerExtra1[PlayerID] = 10 PlayerDirection = 3 end
+		if PlayerFacing == 43 then PlayerExtra1[PlayerID] = 11 PlayerDirection = 1 end
+		if PlayerFacing == 44 then PlayerExtra1[PlayerID] = 12 PlayerDirection = 2 end
+		--Running
+		if PlayerFacing == 61 then PlayerExtra1[PlayerID] = 13 PlayerDirection = 4 end
+		if PlayerFacing == 62 then PlayerExtra1[PlayerID] = 14 PlayerDirection = 3 end
+		if PlayerFacing == 63 then PlayerExtra1[PlayerID] = 15 PlayerDirection = 1 end
+		if PlayerFacing == 64 then PlayerExtra1[PlayerID] = 16 PlayerDirection = 2 end
+		
+		--calling pokemon out
+		if PlayerFacing == 69 then PlayerExtra1[PlayerID] = 1 PlayerDirection = 4 end
+		
+		if ScreenData == 0 then
+			if PlayerDirection == 4 then PlayerExtra1[PlayerID] = 1 PlayerFacing = 0 end
+			if PlayerDirection == 3 then PlayerExtra1[PlayerID] = 2 PlayerFacing = 1 end
+			if PlayerDirection == 1 then PlayerExtra1[PlayerID] = 3 PlayerFacing = 2 end
+			if PlayerDirection == 2 then PlayerExtra1[PlayerID] = 4 PlayerFacing = 3 end
+		end
+		--	if Facing == 255 then PlayerExtra1 = 0 end
+	end
+	PlayerExtra1[PlayerID] = PlayerExtra1[PlayerID] + 100
+	CurrentFacingDirection[PlayerID] = PlayerDirection
 end
 
 function NoPlayersIfScreen()
 	local ScreenData1 = 0
-	local ScreenData2 = 0
 	local ScreenData3 = 0
+	local ScreenData4 = 0
 	local u32 ScreenDataAddress1 = 0
-	local u32 ScreenDataAddress2 = 0
 	local u32 ScreenDataAddress3 = 0
+	local u32 ScreenDataAddress4 = 0
 	if GameID == "BPR1" or GameID == "BPR2" then
-		--Addresses for Firered
-		ScreenDataAddress1 = 33686722
-		ScreenDataAddress2 = 33686723
+		--Address for Firered
+		ScreenDataAddress1 = 33691280
 		--For intro
 		ScreenDataAddress3 = 33686716
+		--Check for battle
+		ScreenDataAddress4 = 33685514
 	elseif GameID == "BPG1" or GameID == "BPG2" then
-		--Addresses for Leafgreen
-		ScreenDataAddress1 = 33686722
-		ScreenDataAddress2 = 33686723
+		--Address for Leafgreen
+		ScreenDataAddress1 = 33691280
 		--For intro
 		ScreenDataAddress3 = 33686716
+		--Check for battle
+		ScreenDataAddress4 = 33685514
 	end
-		ScreenData1 = emu:read8(ScreenDataAddress1)
-		ScreenData2 = emu:read8(ScreenDataAddress2)
+		ScreenData1 = emu:read32(ScreenDataAddress1)
 		ScreenData3 = emu:read8(ScreenDataAddress3)
+		ScreenData4 = emu:read8(ScreenDataAddress4)
 		
 	--	if TempVar2 == 0 then ConsoleForText:print("ScreenData: " .. ScreenData1 .. " " .. ScreenData2 .. " " .. ScreenData3) end
 		--If screen data are these then hide players
-		if ScreenData3 ~= 80 or (ScreenData1 > 1 and ScreenData1 < 28) or ScreenData2 == 18 or ScreenData2 == 27 then
+		if (ScreenData3 ~= 80 or (ScreenData1 > 0)) and (LockFromScript == 0 or LockFromScript == 8 or LockFromScript == 9) then
 			ScreenData = 0
+		--	console:log("SCREENDATA OFF: " .. LockFromScript)
 		else
 			ScreenData = 1
+		--	console:log("SCREENDATA ON")
+		end
+		if ScreenData4 == 1 then
+			PlayerExtra4[PlayerID] = 1
+		else
+			PlayerExtra4[PlayerID] = 0
 		end
 end
+
 
 
 function AnimatePlayerMovement(PlayerNo, AnimateID)
@@ -20211,477 +19737,365 @@ function AnimatePlayerMovement(PlayerNo, AnimateID)
 		--11 = Face up
 		--12 = Face left/right
 		
-	if MapX == 0 then MapX = NewMapX end
-	if MapY == 0 then MapY = NewMapY end
-	if MapX2 == 0 then MapX2 = NewMapX2 end
-	if MapY2 == 0 then MapY2 = NewMapY2 end
-	if MapX3 == 0 then MapX3 = NewMapX3 end
-	if MapY3 == 0 then MapY3 = NewMapY3 end
-	if MapX4 == 0 then MapX4 = NewMapX4 end
-	if MapY4 == 0 then MapY4 = NewMapY4 end
-		local XMap = 0
-		local YMap = 0
-		local NewXMap = 0
-		local NewYMap = 0
-		local NewMapPosX = 0
-		local NewMapPosY = 0
-		local Charpic = 0
-		local PlayerAnimationFrame = 0
-		local PlayerAnimationFrame2 = 0
-		local PlayerExtra = 0
-		local PlayerAnimationFrameMax = 16
-		local Direction = 0
-		local FacingDir = 0
-		local SpriteNumber = 0
-		local PrevAnim = 0
-		--PLAYERS
-		if PlayerNo == 1 then
-			XMap = MapX
-			YMap = MapY
-			NewXMap = NewMapX
-			NewYMap = NewMapY
-			NewMapPosX = NewMapXPos
-			NewMapPosY = NewMapYPos
-			Charpic = 0
-			PlayerAnimationFrame = Player1AnimationFrame
-			PlayerAnimationFrame2 = Player1AnimationFrame2
-			PlayerExtra = PlayerExtra1
-			Direction = PlayerDirection
-			FacingDir = Facing
-			SpriteNumber = PlayerExtra2
-			PrevAnim = PlayerPrevAnimation[1]
-		elseif PlayerNo == 2 then
-			XMap = MapX2
-			YMap = MapY2
-			NewXMap = NewMapX2
-			NewYMap = NewMapY2
-			NewMapPosX = NewMapX2Pos
-			NewMapPosY = NewMapY2Pos
-			Charpic = 1
-			PlayerAnimationFrame = Player2AnimationFrame
-			PlayerAnimationFrame2 = Player2AnimationFrame2
-			PlayerExtra = Player2Extra1
-			Direction = Player2Direction
-			FacingDir = Facing2
-			SpriteNumber = Player2Extra2
-			PrevAnim = PlayerPrevAnimation[2]
-		elseif PlayerNo == 3 then
-			XMap = MapX3
-			YMap = MapY3
-			NewXMap = NewMapX3
-			NewYMap = NewMapY3
-			NewMapPosX = NewMapX3Pos
-			NewMapPosY = NewMapY3Pos
-			Charpic = 2
-			PlayerAnimationFrame = Player3AnimationFrame
-			PlayerAnimationFrame2 = Player3AnimationFrame2
-			PlayerExtra = Player3Extra1
-			SpriteNumber = Player3Extra2
-			PrevAnim = PlayerPrevAnimation[3]
-		elseif PlayerNo == 4 then
-			XMap = MapX4
-			YMap = MapY4
-			NewXMap = NewMapX4
-			NewYMap = NewMapY4
-			NewMapPosX = NewMapX4Pos
-			NewMapPosY = NewMapY4Pos
-			Charpic = 3
-			PlayerAnimationFrame = Player4AnimationFrame
-			PlayerAnimationFrame2 = Player4AnimationFrame2
-			PlayerExtra = Player4Extra1
-			SpriteNumber = Player4Extra2
-			PrevAnim = PlayerPrevAnimation[4]
-		end
-			AnimatePlayerMoveX = ((NewXMap * 16) - NewMapPosX) - (XMap * 16)
-			AnimatePlayerMoveY = ((NewYMap * 16) - NewMapPosY) - (YMap * 16)
+	if CurrentX[PlayerNo] == 0 then CurrentX[PlayerNo] = FutureX[PlayerNo] end
+	if CurrentY[PlayerNo] == 0 then CurrentY[PlayerNo] = FutureY[PlayerNo] end
+	local AnimationMovementX = FutureX[PlayerNo] - CurrentX[PlayerNo]
+	local AnimationMovementY = FutureY[PlayerNo] - CurrentY[PlayerNo]
+	local Charpic = PlayerNo - 1
+	local SpriteNumber = PlayerExtra2[PlayerNo]
 			
-			if PlayerAnimationFrame < 0 then PlayerAnimationFrame = 0 end
-	--		if PlayerAnimationFrame > 20 then PlayerAnimationFrame = 0 end
-			--16 is the standard for 1 movement.
-			PlayerAnimationFrame = PlayerAnimationFrame + 1
-			
-		--	if AnimateID ~= 255 then
-		--	log("Max frame: " .. PlayerAnimationFrameMax .. "Current frame: " .. PlayerAnimationFrame)
-		--	end
-			
-			--Animate left movement
-			if AnimatePlayerMoveX < 0 then
+	if PlayerAnimationFrame[PlayerNo] < 0 then PlayerAnimationFrame[PlayerNo] = 0 end
+	PlayerAnimationFrame[PlayerNo] = PlayerAnimationFrame[PlayerNo] + 1
+	
+	--Animate left movement
+	if AnimationMovementX < 0 then
+	
+			--Walk
+		if AnimateID == 3 then
+			PlayerAnimationFrameMax[PlayerNo] = 14
+			AnimationX[PlayerNo] = AnimationX[PlayerNo] - 1
+			if PlayerAnimationFrame[PlayerNo] == 5 then AnimationX[PlayerNo] = AnimationX[PlayerNo] - 1 end
+			if PlayerAnimationFrame[PlayerNo] == 9 then AnimationX[PlayerNo] = AnimationX[PlayerNo] - 1 end
+			if PlayerAnimationFrame[PlayerNo] >= 3 and PlayerAnimationFrame[PlayerNo] <= 11 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,4,SpriteNumber)
+				else
+				createChars(Charpic,5,SpriteNumber)
+				end
+			else
+				createChars(Charpic,1,SpriteNumber)
+			end
+		--Run
+		elseif AnimateID == 6 then
+			PlayerAnimationFrameMax[PlayerNo] = 9
+			AnimationX[PlayerNo] = AnimationX[PlayerNo] - 4
+		--	ConsoleForText:print("Frame: " .. PlayerAnimationFrame)
+			if PlayerAnimationFrame[PlayerNo] > 5 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,20,SpriteNumber)
+				else
+				createChars(Charpic,21,SpriteNumber)
+				end
+			else
+				createChars(Charpic,19,SpriteNumber)
+			end
+		--Bike
+		elseif AnimateID == 9 then
+			PlayerAnimationFrameMax[PlayerNo] = 6
+			AnimationX[PlayerNo] = AnimationX[PlayerNo] + ((AnimationMovementX*16)/3)
+			if PlayerAnimationFrame[PlayerNo] >= 1 and PlayerAnimationFrame[PlayerNo] < 5 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,13,SpriteNumber)
+				else
+				createChars(Charpic,14,SpriteNumber)
+				end
+			else
+				createChars(Charpic,10,SpriteNumber)
+			end
+		--Surf
+		elseif AnimateID == 23 then
+			PlayerAnimationFrameMax[PlayerNo] = 4
+			AnimationX[PlayerNo] = AnimationX[PlayerNo] - 4
+			createChars(Charpic,30,SpriteNumber)
+			createChars(Charpic,36,SpriteNumber)
+		else
 		
-	--	if AnimateID < 250 then ConsoleForText:print("Extra: " .. PlayerExtra .. "  " .. AnimateID) end
-				
-				--Walk
-				if AnimateID == 3 then
-					PlayerAnimationFrameMax = 14
-					NewMapPosX = NewMapPosX - 1
-					if PlayerAnimationFrame == 5 then NewMapPosX = NewMapPosX - 1 end
-					if PlayerAnimationFrame == 9 then NewMapPosX = NewMapPosX - 1 end
-					if PlayerAnimationFrame >= 3 and PlayerAnimationFrame <= 11 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,4,SpriteNumber)
-						else
-						createChars(Charpic,5,SpriteNumber)
-						end
-					else
-						createChars(Charpic,1,SpriteNumber)
-					end
-				--Run
-				elseif AnimateID == 6 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosX = NewMapPosX - 4
-				--	ConsoleForText:print("Frame: " .. PlayerAnimationFrame)
-					if PlayerAnimationFrame == 3 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,20,SpriteNumber)
-						else
-						createChars(Charpic,21,SpriteNumber)
-						end
-					else
-						createChars(Charpic,19,SpriteNumber)
-					end
-				--Bike
-				elseif AnimateID == 9 then
-					PlayerAnimationFrameMax = 6
-					NewMapPosX = NewMapPosX - 4
-					if PlayerAnimationFrame > 2 and PlayerAnimationFrame <= 4 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,13,SpriteNumber)
-						else
-						createChars(Charpic,14,SpriteNumber)
-						end
-					else
-						createChars(Charpic,10,SpriteNumber)
-					end
-				--Surf
-				elseif AnimateID == 23 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosX = NewMapPosX - 4
-					createChars(Charpic,30,SpriteNumber)
-					createChars(Charpic,36,SpriteNumber)
-				else
-				
-				end
-				
-			--Animate right movement
-			elseif AnimatePlayerMoveX > 0 then
-				if AnimateID == 13 then
-					PlayerAnimationFrameMax = 14
-					NewMapPosX = NewMapPosX + 1
-					if PlayerAnimationFrame == 5 then NewMapPosX = NewMapPosX + 1 end
-					if PlayerAnimationFrame == 9 then NewMapPosX = NewMapPosX + 1 end
-					if PlayerAnimationFrame >= 3 and PlayerAnimationFrame <= 11 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,4,SpriteNumber)
-						else
-						createChars(Charpic,5,SpriteNumber)
-						end
-					else
-						createChars(Charpic,1,SpriteNumber)
-					end
-				elseif AnimateID == 14 then
-				--	ConsoleForText:print("Running")
-					PlayerAnimationFrameMax = 4
-					NewMapPosX = NewMapPosX + 4
-					if PlayerAnimationFrame == 3 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,20,SpriteNumber)
-						else
-						createChars(Charpic,21,SpriteNumber)
-						end
-					else
-						createChars(Charpic,19,SpriteNumber)
-					end
-				elseif AnimateID == 15 then
-				--	ConsoleForText:print("Bike")
-					PlayerAnimationFrameMax = 4
-					NewMapPosX = NewMapPosX + 4
-					if PlayerAnimationFrame > 2 and PlayerAnimationFrame <= 4 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,13,SpriteNumber)
-						else
-						createChars(Charpic,14,SpriteNumber)
-						end
-					else
-						createChars(Charpic,10,SpriteNumber)
-					end
-				--Surf
-				elseif AnimateID == 24 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosX = NewMapPosX + 4
-					createChars(Charpic,30,SpriteNumber)
-					createChars(Charpic,36,SpriteNumber)
-				else
-				
-				end
-			else
-				XMap = NewXMap
-				NewMapPosX = 0
-				--Turn player left/right
-				if AnimateID == 12 then
-					PlayerAnimationFrameMax = 8
-					if PlayerAnimationFrame > 1 and PlayerAnimationFrame < 6 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,4,SpriteNumber)
-						else
-						createChars(Charpic,5,SpriteNumber)
-						end
-					else
-						createChars(Charpic,1,SpriteNumber)
-					end
-				--If they are now equal
-				end
-				--Surfing animation
-				if AnimateID == 19 then
-					createChars(Charpic,36,SpriteNumber)
-					if PrevAnim ~= 19 then PlayerAnimationFrame2 = 0 PlayerAnimationFrame = 24 end
-					PlayerAnimationFrameMax = 48
-					if PlayerAnimationFrame2 == 0 then createChars(Charpic,30,SpriteNumber)
-					elseif PlayerAnimationFrame2 == 1 then createChars(Charpic,33,SpriteNumber)
-					end
-				elseif AnimateID == 20 then
-					createChars(Charpic,36,SpriteNumber)
-					if PrevAnim ~= 20 then PlayerAnimationFrame2 = 0 PlayerAnimationFrame = 24 end
-					PlayerAnimationFrameMax = 48
-					if PlayerAnimationFrame2 == 0 then createChars(Charpic,30,SpriteNumber)
-					elseif PlayerAnimationFrame2 == 1 then createChars(Charpic,33,SpriteNumber)
-					end
-				end
-			end
-			
-			
-			--Animate up movement
-			if AnimatePlayerMoveY < 0 then
-				if AnimateID == 2 then
-					PlayerAnimationFrameMax = 14
-					NewMapPosY = NewMapPosY - 1
-					if PlayerAnimationFrame == 5 then NewMapPosY = NewMapPosY - 1 end
-					if PlayerAnimationFrame == 9 then NewMapPosY = NewMapPosY - 1 end
-					if PlayerAnimationFrame >= 3 and PlayerAnimationFrame <= 11 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,6,SpriteNumber)
-						else
-						createChars(Charpic,7,SpriteNumber)
-						end	
-					else
-						createChars(Charpic,2,SpriteNumber)
-					end
-				elseif AnimateID == 5 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosY = NewMapPosY - 4
-					if PlayerAnimationFrame == 3 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,23,SpriteNumber)
-						else
-						createChars(Charpic,24,SpriteNumber)
-						end
-					else
-						createChars(Charpic,22,SpriteNumber)
-					end
-				elseif AnimateID == 8 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosY = NewMapPosY - 4
-					if PlayerAnimationFrame > 2 and PlayerAnimationFrame <= 4 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,15,SpriteNumber)
-						else
-						createChars(Charpic,16,SpriteNumber)
-						end
-					else
-						createChars(Charpic,11,SpriteNumber)
-					end
-				--Surf
-				elseif AnimateID == 22 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosY = NewMapPosY - 4
-					createChars(Charpic,29,SpriteNumber)
-					createChars(Charpic,35,SpriteNumber)
-				end
-					
-			--Animate down movement
-			elseif AnimatePlayerMoveY > 0 then
-				if AnimateID == 1 then
-					PlayerAnimationFrameMax = 14
-					NewMapPosY = NewMapPosY + 1
-					if PlayerAnimationFrame == 5 then NewMapPosY = NewMapPosY + 1 end
-					if PlayerAnimationFrame == 9 then NewMapPosY = NewMapPosY + 1 end
-					if PlayerAnimationFrame >= 3 and PlayerAnimationFrame <= 11 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,8,SpriteNumber)
-						else
-						createChars(Charpic,9,SpriteNumber)
-						end
-					else
-						createChars(Charpic,3,SpriteNumber)
-					end
-				elseif AnimateID == 4 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosY = NewMapPosY + 4
-					if PlayerAnimationFrame == 3 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,26,SpriteNumber)
-						else
-						createChars(Charpic,27,SpriteNumber)
-						end
-					else
-						createChars(Charpic,25,SpriteNumber)
-					end
-				elseif AnimateID == 7 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosY = NewMapPosY + 4
-					if PlayerAnimationFrame > 2 and PlayerAnimationFrame <= 4 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,17,SpriteNumber)
-						else
-						createChars(Charpic,18,SpriteNumber)
-						end
-					else
-						createChars(Charpic,12,SpriteNumber)
-					end
-				--Surf
-				elseif AnimateID == 21 then
-					PlayerAnimationFrameMax = 4
-					NewMapPosY = NewMapPosY + 4
-					createChars(Charpic,28,SpriteNumber)
-					createChars(Charpic,34,SpriteNumber)
-				--If they are now equal
-				end
-			else
-					YMap = NewYMap
-					NewMapPosY = 0
-				--Turn player down
-				if AnimateID == 10 then
-					PlayerAnimationFrameMax = 8
-					if PlayerAnimationFrame > 1 and PlayerAnimationFrame < 6 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,8,SpriteNumber)
-						else
-						createChars(Charpic,9,SpriteNumber)
-						end
-					else
-						createChars(Charpic,3,SpriteNumber)
-					end
-				--Turn player up
-				
-				elseif AnimateID == 11 then
-					PlayerAnimationFrameMax = 8
-					if PlayerAnimationFrame > 1 and PlayerAnimationFrame < 6 then
-						if PlayerAnimationFrame2 == 0 then
-						createChars(Charpic,6,SpriteNumber)
-						else
-						createChars(Charpic,7,SpriteNumber)
-						end
-					else
-						createChars(Charpic,2,SpriteNumber)
-					end
-				else
-				--		createChars(Charpic,3,SpriteNumber)
-				end
-				
-				--Surfing animation
-				if AnimateID == 17 then
-					createChars(Charpic,34,SpriteNumber)
-					if PrevAnim ~= 17 then PlayerAnimationFrame2 = 0 PlayerAnimationFrame = 24 end
-					PlayerAnimationFrameMax = 48
-					if PlayerAnimationFrame2 == 0 then createChars(Charpic,28,SpriteNumber)
-					elseif PlayerAnimationFrame2 == 1 then createChars(Charpic,31,SpriteNumber)
-					end
-				elseif AnimateID == 18 then
-					createChars(Charpic,35,SpriteNumber)
-					if PrevAnim ~= 18 then PlayerAnimationFrame2 = 0 PlayerAnimationFrame = 24 end
-					PlayerAnimationFrameMax = 48
-					if PlayerAnimationFrame2 == 0 then createChars(Charpic,29,SpriteNumber)
-					elseif PlayerAnimationFrame2 == 1 then createChars(Charpic,32,SpriteNumber)
-					end
-				--If they are now equal
-				end
-			end
-			
-			if AnimateID == 251 then
-				PlayerAnimationFrame = 0
-				XMap = NewXMap
-				YMap = NewYMap
-				NewMapPosX = 0
-				NewMapPosY = 0
-			elseif AnimateID == 252 then
-				PlayerAnimationFrame = 0
-				XMap = NewXMap
-				YMap = NewYMap
-				NewMapPosX = 0
-				NewMapPosY = 0
-			elseif AnimateID == 253 then
-				PlayerAnimationFrame = 0
-				XMap = NewXMap
-				YMap = NewYMap
-				NewMapPosX = 0
-				NewMapPosY = 0
-			elseif AnimateID == 254 then
-				PlayerAnimationFrame = 0
-				XMap = NewXMap
-				YMap = NewYMap
-				NewMapPosX = 0
-				NewMapPosY = 0
-			end
-			
-			if PlayerAnimationFrameMax <= PlayerAnimationFrame then
-				PlayerAnimationFrame = 0
-				if PlayerAnimationFrame2 == 0 then
-					PlayerAnimationFrame2 = 1
-				else
-					PlayerAnimationFrame2 = 0
-				end
-			end
-			
-		PrevAnim = AnimateID
-		--PLAYERS
-		if PlayerNo == 1 then
-			MapX = XMap
-			MapY = YMap
-			NewMapX = NewXMap
-			NewMapY = NewYMap
-			NewMapXPos = NewMapPosX
-			NewMapYPos = NewMapPosY
-			Player1AnimationFrame = PlayerAnimationFrame
-			Player1AnimationFrame2 = PlayerAnimationFrame2
-			PlayerExtra1 = PlayerExtra
-			PlayerDirection = Direction
-			Facing = FacingDir
-			PlayerPrevAnimation[1] = PrevAnim
-		elseif PlayerNo == 2 then
-			MapX2 = XMap
-			MapY2 = YMap
-			NewMapX2 = NewXMap
-			NewMapY2 = NewYMap
-			NewMapX2Pos = NewMapPosX
-			NewMapY2Pos = NewMapPosY
-			Player2AnimationFrame = PlayerAnimationFrame
-			Player2AnimationFrame2 = PlayerAnimationFrame2
-			Player2Extra1 = PlayerExtra
-			Player2Direction = Direction
-			Facing2 = FacingDir
-			PlayerPrevAnimation[2] = PrevAnim
-		elseif PlayerNo == 3 then
-			MapX3 = XMap
-			MapY3 = YMap
-			NewMapX3 = NewXMap
-			NewMapY3 = NewYMap
-			NewMapX3Pos = NewMapPosX
-			NewMapY3Pos = NewMapPosY
-			Player3AnimationFrame = PlayerAnimationFrame
-			Player3AnimationFrame2 = PlayerAnimationFrame2
-			Player3Extra1 = PlayerExtra
-			PlayerPrevAnimation[3] = PrevAnim
-		elseif PlayerNo == 4 then
-			MapX4 = XMap
-			MapY4 = YMap
-			NewMapX4 = NewXMap
-			NewMapY4 = NewYMap
-			NewMapX4Pos = NewMapPosX
-			NewMapY4Pos = NewMapPosY
-			Player4AnimationFrame = PlayerAnimationFrame
-			Player4AnimationFrame2 = PlayerAnimationFrame2
-			Player4Extra1 = PlayerExtra
-			PlayerPrevAnimation[4] = PrevAnim
 		end
+		
+		--Animate right movement
+		elseif AnimationMovementX > 0 then
+		if AnimateID == 13 then
+			PlayerAnimationFrameMax[PlayerNo] = 14
+			AnimationX[PlayerNo] = AnimationX[PlayerNo] + 1
+			if PlayerAnimationFrame[PlayerNo] == 5 then AnimationX[PlayerNo] = AnimationX[PlayerNo] + 1 end
+			if PlayerAnimationFrame[PlayerNo] == 9 then AnimationX[PlayerNo] = AnimationX[PlayerNo] + 1 end
+			if PlayerAnimationFrame[PlayerNo] >= 3 and PlayerAnimationFrame[PlayerNo] <= 11 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,4,SpriteNumber)
+				else
+				createChars(Charpic,5,SpriteNumber)
+				end
+			else
+				createChars(Charpic,1,SpriteNumber)
+			end
+		elseif AnimateID == 14 then
+		--	console:log("RUNNING RIGHT. FRAME: " .. PlayerAnimationFrame .. " FRAME2: " .. PlayerAnimationFrame2)
+		--	ConsoleForText:print("Running")
+			PlayerAnimationFrameMax[PlayerNo] = 9
+			AnimationX[PlayerNo] = AnimationX[PlayerNo] + 4
+			if PlayerAnimationFrame[PlayerNo] > 5 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,20,SpriteNumber)
+				else
+				createChars(Charpic,21,SpriteNumber)
+				end
+			else
+				createChars(Charpic,19,SpriteNumber)
+			end
+		elseif AnimateID == 15 then
+		--	ConsoleForText:print("Bike")
+			PlayerAnimationFrameMax[PlayerNo] = 6
+			AnimationX[PlayerNo] = AnimationX[PlayerNo] + ((AnimationMovementX*16)/3)
+			if PlayerAnimationFrame[PlayerNo] >= 1 and PlayerAnimationFrame[PlayerNo] < 5 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,13,SpriteNumber)
+				else
+				createChars(Charpic,14,SpriteNumber)
+				end
+			else
+				createChars(Charpic,10,SpriteNumber)
+			end
+		--Surf
+		elseif AnimateID == 24 then
+			PlayerAnimationFrameMax[PlayerNo] = 4
+			AnimationX[PlayerNo] = AnimationX[PlayerNo] + 4
+			createChars(Charpic,30,SpriteNumber)
+			createChars(Charpic,36,SpriteNumber)
+		else
+		
+		end
+		else
+		AnimationX[PlayerNo] = 0
+		CurrentX[PlayerNo] = FutureX[PlayerNo]
+		--Turn player left/right
+		if AnimateID == 12 then
+			PlayerAnimationFrameMax[PlayerNo] = 8
+			if PlayerAnimationFrame[PlayerNo] > 1 and PlayerAnimationFrame[PlayerNo] < 6 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,4,SpriteNumber)
+				else
+				createChars(Charpic,5,SpriteNumber)
+				end
+			else
+				createChars(Charpic,1,SpriteNumber)
+			end
+		--If they are now equal
+		end
+		--Surfing animation
+		if AnimateID == 19 then
+			createChars(Charpic,36,SpriteNumber)
+			if PreviousPlayerAnimation[PlayerNo] ~= 19 then PlayerAnimationFrame2[PlayerNo] = 0 PlayerAnimationFrame[PlayerNo] = 24 end
+			PlayerAnimationFrameMax[PlayerNo] = 48
+			if PlayerAnimationFrame2[PlayerNo] == 0 then createChars(Charpic,30,SpriteNumber)
+			elseif PlayerAnimationFrame2[PlayerNo] == 1 then createChars(Charpic,33,SpriteNumber)
+			end
+		elseif AnimateID == 20 then
+			createChars(Charpic,36,SpriteNumber)
+			if PreviousPlayerAnimation[PlayerNo] ~= 20 then PlayerAnimationFrame2[PlayerNo] = 0 PlayerAnimationFrame[PlayerNo] = 24 end
+			PlayerAnimationFrameMax[PlayerNo] = 48
+			if PlayerAnimationFrame2[PlayerNo] == 0 then createChars(Charpic,30,SpriteNumber)
+			elseif PlayerAnimationFrame2[PlayerNo] == 1 then createChars(Charpic,33,SpriteNumber)
+			end
+		end
+		end
+		
+		
+		--Animate up movement
+		if AnimationMovementY < 0 then
+		if AnimateID == 2 then
+			PlayerAnimationFrameMax[PlayerNo] = 14
+			AnimationY[PlayerNo] = AnimationY[PlayerNo] - 1
+			if PlayerAnimationFrame[PlayerNo] == 5 then AnimationY[PlayerNo] = AnimationY[PlayerNo] - 1 end
+			if PlayerAnimationFrame[PlayerNo] == 9 then AnimationY[PlayerNo] = AnimationY[PlayerNo] - 1 end
+			if PlayerAnimationFrame[PlayerNo] >= 3 and PlayerAnimationFrame[PlayerNo] <= 11 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,6,SpriteNumber)
+				else
+				createChars(Charpic,7,SpriteNumber)
+				end	
+			else
+				createChars(Charpic,2,SpriteNumber)
+			end
+		elseif AnimateID == 5 then
+			PlayerAnimationFrameMax[PlayerNo] = 9
+			AnimationY[PlayerNo] = AnimationY[PlayerNo] - 4
+			if PlayerAnimationFrame[PlayerNo] > 5 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,23,SpriteNumber)
+				else
+				createChars(Charpic,24,SpriteNumber)
+				end
+			else
+				createChars(Charpic,22,SpriteNumber)
+			end
+		elseif AnimateID == 8 then
+			PlayerAnimationFrameMax[PlayerNo] = 6
+			AnimationY[PlayerNo] = AnimationY[PlayerNo] + ((AnimationMovementY*16)/3)
+			if PlayerAnimationFrame[PlayerNo] >= 1 and PlayerAnimationFrame[PlayerNo] < 5 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,15,SpriteNumber)
+				else
+				createChars(Charpic,16,SpriteNumber)
+				end
+			else
+				createChars(Charpic,11,SpriteNumber)
+			end
+		--Surf
+		elseif AnimateID == 22 then
+			PlayerAnimationFrameMax[PlayerNo] = 4
+			AnimationY[PlayerNo] = AnimationY[PlayerNo] - 4
+			createChars(Charpic,29,SpriteNumber)
+			createChars(Charpic,35,SpriteNumber)
+		end
+			
+		--Animate down movement
+		elseif AnimationMovementY > 0 then
+		if AnimateID == 1 then
+			PlayerAnimationFrameMax[PlayerNo] = 14
+			AnimationY[PlayerNo] = AnimationY[PlayerNo] + 1
+			if PlayerAnimationFrame[PlayerNo] == 5 then AnimationY[PlayerNo] = AnimationY[PlayerNo] + 1 end
+			if PlayerAnimationFrame[PlayerNo] == 9 then AnimationY[PlayerNo] = AnimationY[PlayerNo] + 1 end
+			if PlayerAnimationFrame[PlayerNo] >= 3 and PlayerAnimationFrame[PlayerNo] <= 11 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,8,SpriteNumber)
+				else
+				createChars(Charpic,9,SpriteNumber)
+				end
+			else
+				createChars(Charpic,3,SpriteNumber)
+			end
+		elseif AnimateID == 4 then
+			PlayerAnimationFrameMax[PlayerNo] = 9
+			AnimationY[PlayerNo] = AnimationY[PlayerNo] + 4
+			if PlayerAnimationFrame[PlayerNo] > 5 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,26,SpriteNumber)
+				else
+				createChars(Charpic,27,SpriteNumber)
+				end
+			else
+				createChars(Charpic,25,SpriteNumber)
+			end
+		elseif AnimateID == 7 then
+			PlayerAnimationFrameMax[PlayerNo] = 6
+			AnimationY[PlayerNo] = AnimationY[PlayerNo] + ((AnimationMovementY*16)/3)
+			if PlayerAnimationFrame[PlayerNo] >= 1 and PlayerAnimationFrame[PlayerNo] < 5 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,17,SpriteNumber)
+				else
+				createChars(Charpic,18,SpriteNumber)
+				end
+			else
+				createChars(Charpic,12,SpriteNumber)
+			end
+		--Surf
+		elseif AnimateID == 21 then
+			PlayerAnimationFrameMax[PlayerNo] = 4
+			AnimationY[PlayerNo] = AnimationY[PlayerNo] + 4
+			createChars(Charpic,28,SpriteNumber)
+			createChars(Charpic,34,SpriteNumber)
+		--If they are now equal
+		end
+		else
+		AnimationY[PlayerNo] = 0
+		CurrentY[PlayerNo] = FutureY[PlayerNo]
+		--Turn player down
+		if AnimateID == 10 then
+			PlayerAnimationFrameMax[PlayerNo] = 8
+			if PlayerAnimationFrame[PlayerNo] > 1 and PlayerAnimationFrame[PlayerNo] < 6 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,8,SpriteNumber)
+				else
+				createChars(Charpic,9,SpriteNumber)
+				end
+			else
+				createChars(Charpic,3,SpriteNumber)
+			end
+		--Turn player up
+		
+		elseif AnimateID == 11 then
+			PlayerAnimationFrameMax[PlayerNo] = 8
+			if PlayerAnimationFrame[PlayerNo] > 1 and PlayerAnimationFrame[PlayerNo] < 6 then
+				if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,6,SpriteNumber)
+				else
+				createChars(Charpic,7,SpriteNumber)
+				end
+			else
+				createChars(Charpic,2,SpriteNumber)
+			end
+		else
+		--		createChars(Charpic,3,SpriteNumber)
+		end
+		
+		--Surfing animation
+		if AnimateID == 17 then
+			createChars(Charpic,34,SpriteNumber)
+			if PreviousPlayerAnimation[PlayerNo] ~= 17 then
+				PlayerAnimationFrame2[PlayerNo] = 0
+				PlayerAnimationFrame[PlayerNo] = 24
+			end
+			PlayerAnimationFrameMax[PlayerNo] = 48
+			if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,28,SpriteNumber)
+			elseif PlayerAnimationFrame2[PlayerNo] == 1 then
+				createChars(Charpic,31,SpriteNumber)
+			end
+		elseif AnimateID == 18 then
+			createChars(Charpic,35,SpriteNumber)
+			if PreviousPlayerAnimation[PlayerNo] ~= 18 then
+				PlayerAnimationFrame2[PlayerNo] = 0
+				PlayerAnimationFrame[PlayerNo] = 24
+			end
+			PlayerAnimationFrameMax[PlayerNo] = 48
+			if PlayerAnimationFrame2[PlayerNo] == 0 then
+				createChars(Charpic,29,SpriteNumber)
+			elseif PlayerAnimationFrame2[PlayerNo] == 1 then
+				createChars(Charpic,32,SpriteNumber)
+			end
+		--If they are now equal
+		end
+	end
+		
+	if AnimateID == 251 then
+		PlayerAnimationFrame[PlayerNo] = 0
+		AnimationX[PlayerNo] = 0
+		AnimationY[PlayerNo] = 0
+		CurrentX[PlayerNo] = FutureX[PlayerNo]
+		CurrentY[PlayerNo] = FutureY[PlayerNo]
+	elseif AnimateID == 252 then
+		PlayerAnimationFrame[PlayerNo] = 0
+		AnimationX[PlayerNo] = 0
+		AnimationY[PlayerNo] = 0
+		CurrentX[PlayerNo] = FutureX[PlayerNo]
+		CurrentY[PlayerNo] = FutureY[PlayerNo]
+	elseif AnimateID == 253 then
+		PlayerAnimationFrame[PlayerNo] = 0
+		AnimationX[PlayerNo] = 0
+		AnimationY[PlayerNo] = 0
+		CurrentX[PlayerNo] = FutureX[PlayerNo]
+		CurrentY[PlayerNo] = FutureY[PlayerNo]
+	elseif AnimateID == 254 then
+		PlayerAnimationFrame[PlayerNo] = 0
+		AnimationX[PlayerNo] = 0
+		AnimationY[PlayerNo] = 0
+		CurrentX[PlayerNo] = FutureX[PlayerNo]
+		CurrentY[PlayerNo] = FutureY[PlayerNo]
+	elseif AnimateID == 255 then
+		CurrentX[PlayerNo] = FutureX[PlayerNo]
+		CurrentY[PlayerNo] = FutureY[PlayerNo]
+	end
+		
+	if PlayerAnimationFrameMax[PlayerNo] <= PlayerAnimationFrame[PlayerNo] then
+		PlayerAnimationFrame[PlayerNo] = 0
+		if PlayerAnimationFrame2[PlayerNo] == 0 then
+			PlayerAnimationFrame2[PlayerNo] = 1
+		else
+			PlayerAnimationFrame2[PlayerNo] = 0
+		end
+	end
+	if AnimationX[PlayerNo] > 15 or AnimationX[PlayerNo] < -15 then
+		CurrentX[PlayerNo] = FutureX[PlayerNo]
+		AnimationX[PlayerNo] = 0
+	end
+	if AnimationY[PlayerNo] > 15 or AnimationY[PlayerNo] < -15 then
+		CurrentY[PlayerNo] = FutureY[PlayerNo]
+		AnimationY[PlayerNo] = 0
+	end
+	PreviousPlayerAnimation[PlayerNo] = AnimateID
 end
+
+
 
 function HandleSprites()
 	--Because handling images every time would become a hassle, this will automatically set the image of every player
@@ -20702,462 +20116,270 @@ function HandleSprites()
 	--PlayerExtra 17 = Down Bike
 	--PlayerExtra 18 = Up Bike
 	--PlayerExtra 19 or 20 = Left/Right Bike
-	
-	--PlayerExtra 33 - 36 = Surf still
-	--PlayerExtra 37 - 40 = Surf moving
-	
-	--Player 1 sprite
-	if PlayerID ~= 1 then
-	
-		--While another player is loading into another map. One time
-		if NewMap ~= 0 then
-			MapX = MapStartX
-			MapY = MapStartY
-		end
-		
-		--Facing down
-		if PlayerExtra1 == 1 then createChars(0,3,PlayerExtra2) PlayerDirection = 4 Facing = 0 AnimatePlayerMovement(1, 251)
-		
-		--Facing up
-		elseif PlayerExtra1 == 2 then createChars(0,2,PlayerExtra2) PlayerDirection = 3 Facing = 0 AnimatePlayerMovement(1, 252)
-		
-		--Facing left
-		elseif PlayerExtra1 == 3 then createChars(0,1,PlayerExtra2) PlayerDirection = 1 Facing = 0 AnimatePlayerMovement(1, 253)
-		
-		--Facing right
-		elseif PlayerExtra1 == 4 then createChars(0,1,PlayerExtra2) PlayerDirection = 2 Facing = 1 AnimatePlayerMovement(1, 254)
-		
-		--walk down
-		elseif PlayerExtra1 == 5 then Facing = 0 PlayerDirection = 4 AnimatePlayerMovement(1, 1)
-		
-		--walk up
-		elseif PlayerExtra1 == 6 then Facing = 0 PlayerDirection = 3 AnimatePlayerMovement(1, 2)
-		
-		--walk left
-		elseif PlayerExtra1 == 7 then Facing = 0 PlayerDirection = 1 AnimatePlayerMovement(1, 3)
-		
-		--walk right
-		elseif PlayerExtra1 == 8 then Facing = 1 PlayerDirection = 2 AnimatePlayerMovement(1, 13)
-		
-		--turn down
-		elseif PlayerExtra1 == 9 then Facing = 0 PlayerDirection = 4 AnimatePlayerMovement(1, 10)
-		
-		--turn up
-		elseif PlayerExtra1 == 10 then Facing = 0 PlayerDirection = 3 AnimatePlayerMovement(1, 11)
-		
-		--turn left
-		elseif PlayerExtra1 == 11 then Facing = 0 PlayerDirection = 1 AnimatePlayerMovement(1, 12)
-		
-		--turn right
-		elseif PlayerExtra1 == 12 then Facing = 1 PlayerDirection = 2 AnimatePlayerMovement(1, 12)
-		
-		--run down
-		elseif PlayerExtra1 == 13 then Facing = 0 PlayerDirection = 4 AnimatePlayerMovement(1, 4)
-		
-		--run up
-		elseif PlayerExtra1 == 14 then Facing = 0 PlayerDirection = 3 AnimatePlayerMovement(1, 5)
-		
-		--run left
-		elseif PlayerExtra1 == 15 then Facing = 0 PlayerDirection = 1 AnimatePlayerMovement(1, 6)
-		
-		--run right
-		elseif PlayerExtra1 == 16 then Facing = 1 PlayerDirection = 2 AnimatePlayerMovement(1, 14)
-		
-		--bike face down
-		elseif PlayerExtra1 == 17 then createChars(0,12,PlayerExtra2) PlayerDirection = 4 Facing = 0 AnimatePlayerMovement(1, 251)
-		
-		--bike face up
-		elseif PlayerExtra1 == 18 then createChars(0,11,PlayerExtra2) PlayerDirection = 3 Facing = 0 AnimatePlayerMovement(1, 252)
-		
-		--bike face left
-		elseif PlayerExtra1 == 19 then createChars(0,10,PlayerExtra2) PlayerDirection = 1 Facing = 0 AnimatePlayerMovement(1, 253)
-		
-		--bike face right
-		elseif PlayerExtra1 == 20 then createChars(0,10,PlayerExtra2) PlayerDirection = 2 Facing = 1 AnimatePlayerMovement(1, 254)
-		
-		--bike move down
-		elseif PlayerExtra1 == 21 then Facing = 0 PlayerDirection = 4 AnimatePlayerMovement(1, 7)
-		
-		--bike move up
-		elseif PlayerExtra1 == 22 then Facing = 0 PlayerDirection = 3 AnimatePlayerMovement(1, 8)
-		
-		--bike move left
-		elseif PlayerExtra1 == 23 then Facing = 0 PlayerDirection = 1 AnimatePlayerMovement(1, 9)
-		
-		--bike move right
-		elseif PlayerExtra1 == 24 then Facing = 1 PlayerDirection = 2 AnimatePlayerMovement(1, 15)
-		
-		--bike fast move down
-		elseif PlayerExtra1 == 25 then Facing = 0 PlayerDirection = 4 AnimatePlayerMovement(1, 7)
-		
-		--bike fast move up
-		elseif PlayerExtra1 == 26 then Facing = 0 PlayerDirection = 3 AnimatePlayerMovement(1, 8)
-		
-		--bike fast move left
-		elseif PlayerExtra1 == 27 then Facing = 0 PlayerDirection = 1 AnimatePlayerMovement(1, 9)
-		
-		--bike fast move right
-		elseif PlayerExtra1 == 28 then Facing = 1 PlayerDirection = 2 AnimatePlayerMovement(1, 15)
-		
-		--bike hit wall down
-		elseif PlayerExtra1 == 29 then createChars(0,12,PlayerExtra2) PlayerDirection = 4 Facing = 0 AnimatePlayerMovement(1, 251)
-		
-		--bike hit wall up
-		elseif PlayerExtra1 == 30 then createChars(0,11,PlayerExtra2) PlayerDirection = 3 Facing = 0 AnimatePlayerMovement(1, 252)
-		
-		--bike hit wall left
-		elseif PlayerExtra1 == 31 then createChars(0,10,PlayerExtra2) PlayerDirection = 1 Facing = 0 AnimatePlayerMovement(1, 253)
-		
-		--bike hit wall right
-		elseif PlayerExtra1 == 32 then createChars(0,10,PlayerExtra2) PlayerDirection = 2 Facing = 1 AnimatePlayerMovement(1, 254)
-		
-		
-		--Surfing
-		
-		--Facing down
-		elseif PlayerExtra1 == 33 then PlayerDirection = 4 Facing = 0 AnimatePlayerMovement(1, 17)
-		
-		--Facing up
-		elseif PlayerExtra1 == 34 then PlayerDirection = 3 Facing = 0 AnimatePlayerMovement(1, 18)
-		
-		--Facing left
-		elseif PlayerExtra1 == 35 then PlayerDirection = 1 Facing = 0 AnimatePlayerMovement(1, 19)
-		
-		--Facing right
-		elseif PlayerExtra1 == 36 then PlayerDirection = 2 Facing = 1 AnimatePlayerMovement(1, 20)
-		
-		--surf down
-		elseif PlayerExtra1 == 37 then Facing = 0 PlayerDirection = 4 AnimatePlayerMovement(1, 21)
-		
-		--surf up
-		elseif PlayerExtra1 == 38 then Facing = 0 PlayerDirection = 3 AnimatePlayerMovement(1, 22)
-		
-		--surf left
-		elseif PlayerExtra1 == 39 then Facing = 0 PlayerDirection = 1 AnimatePlayerMovement(1, 23)
-		
-		--surf right
-		elseif PlayerExtra1 == 40 then Facing = 1 PlayerDirection = 2 AnimatePlayerMovement(1, 24)
-		
-		
-		
-		--default position
-		elseif PlayerExtra1 == 0 then Facing = 0 AnimatePlayerMovement(1, 255)
-		
-		end
-		if NewMap ~= 0 then
-			NewMap = 0
-			PlayerDirectionPrev = PlayerDirection
-			if PlayerDirectionPrev ~= 0 then
-				if PlayerDirectionPrev == 1 then
-			--		ConsoleForText:print("Left" .. Player2Extra1)
-					MapStartX = MapStartX + 1
-				--	MapX2 = MapX2 + 1
-				--Down
-				elseif PlayerDirectionPrev == 2 then
-			--		ConsoleForText:print("Right" .. Player2Extra1)
-					MapStartX = MapStartX - 1
-				--	MapX2 = MapX2 - 1
-				--Left
-				elseif PlayerDirectionPrev == 3 then
-			--		ConsoleForText:print("P2 Up")
-					MapStartY = MapStartY + 1
-				--	MapY2 = MapY2 + 1
-				--Right
-				elseif PlayerDirectionPrev == 4 then
-			--		ConsoleForText:print("P2 Down")
-					MapStartY = MapStartY - 1
-			--		MapY2 = MapY2 - 1
-				end
+	local PlayerChar = 0
+	for i = 1, MaxPlayers do
+		PlayerChar = i - 1
+		if PlayerID ~= i and PlayerIDNick[i] ~= "None" then
+			--Facing down
+			if PlayerExtra1[i] == 1 then createChars(PlayerChar,3,PlayerExtra2[i]) CurrentFacingDirection[i] = 4 Facing2[i] = 0 AnimatePlayerMovement(i, 251)
+			
+			--Facing up
+			elseif PlayerExtra1[i] == 2 then createChars(PlayerChar,2,PlayerExtra2[i]) CurrentFacingDirection[i] = 3 Facing2[i] = 0 AnimatePlayerMovement(i, 252)
+			
+			--Facing left
+			elseif PlayerExtra1[i] == 3 then createChars(PlayerChar,1,PlayerExtra2[i]) CurrentFacingDirection[i] = 1 Facing2[i] = 0 AnimatePlayerMovement(i, 253)
+			
+			--Facing right
+			elseif PlayerExtra1[i] == 4 then createChars(PlayerChar,1,PlayerExtra2[i]) CurrentFacingDirection[i] = 2 Facing2[i] = 1 AnimatePlayerMovement(i, 254)
+			
+			--walk down
+			elseif PlayerExtra1[i] == 5 then Facing2[i] = 0 CurrentFacingDirection[i] = 4 AnimatePlayerMovement(i, 1)
+			
+			--walk up
+			elseif PlayerExtra1[i] == 6 then Facing2[i] = 0 CurrentFacingDirection[i] = 3 AnimatePlayerMovement(i, 2)
+			
+			--walk left
+			elseif PlayerExtra1[i] == 7 then Facing2[i] = 0 CurrentFacingDirection[i] = 1 AnimatePlayerMovement(i, 3)
+			
+			--walk right
+			elseif PlayerExtra1[i] == 8 then Facing2[i] = 1 CurrentFacingDirection[i] = 2 AnimatePlayerMovement(i, 13)
+			
+			--turn down
+			elseif PlayerExtra1[i] == 9 then Facing2[i] = 0 CurrentFacingDirection[i] = 4 AnimatePlayerMovement(i, 10)
+			
+			--turn up
+			elseif PlayerExtra1[i] == 10 then Facing2[i] = 0 CurrentFacingDirection[i] = 3 AnimatePlayerMovement(i, 11)
+			
+			--turn left
+			elseif PlayerExtra1[i] == 11 then Facing2[i] = 0 CurrentFacingDirection[i] = 1 AnimatePlayerMovement(i, 12)
+			
+			--turn right
+			elseif PlayerExtra1[i] == 12 then Facing2[i] = 1 CurrentFacingDirection[i] = 2 AnimatePlayerMovement(i, 12)
+			
+			--run down
+			elseif PlayerExtra1[i] == 13 then Facing2[i] = 0 CurrentFacingDirection[i] = 4 AnimatePlayerMovement(i, 4)
+			
+			--run up
+			elseif PlayerExtra1[i] == 14 then Facing2[i] = 0 CurrentFacingDirection[i] = 3 AnimatePlayerMovement(i, 5)
+			
+			--run left
+			elseif PlayerExtra1[i] == 15 then Facing2[i] = 0 CurrentFacingDirection[i] = 1 AnimatePlayerMovement(i, 6)
+			
+			--run right
+			elseif PlayerExtra1[i] == 16 then Facing2[i] = 1 CurrentFacingDirection[i] = 2 AnimatePlayerMovement(i, 14)
+			
+			--bike face down
+			elseif PlayerExtra1[i] == 17 then createChars(PlayerChar,12,PlayerExtra2[i]) CurrentFacingDirection[i] = 4 Facing2[i] = 0 AnimatePlayerMovement(i, 251)
+			
+			--bike face up
+			elseif PlayerExtra1[i] == 18 then createChars(PlayerChar,11,PlayerExtra2[i]) CurrentFacingDirection[i] = 3 Facing2[i] = 0 AnimatePlayerMovement(i, 252)
+			
+			--bike face left
+			elseif PlayerExtra1[i] == 19 then createChars(PlayerChar,10,PlayerExtra2[i]) CurrentFacingDirection[i] = 1 Facing2[i] = 0 AnimatePlayerMovement(i, 253)
+			
+			--bike face right
+			elseif PlayerExtra1[i] == 20 then createChars(PlayerChar,10,PlayerExtra2[i]) CurrentFacingDirection[i] = 2 Facing2[i] = 1 AnimatePlayerMovement(i, 254)
+			
+			--bike move down
+			elseif PlayerExtra1[i] == 21 then Facing2[i] = 0 CurrentFacingDirection[i] = 4 AnimatePlayerMovement(i, 7)
+			
+			--bike move up
+			elseif PlayerExtra1[i] == 22 then Facing2[i] = 0 CurrentFacingDirection[i] = 3 AnimatePlayerMovement(i, 8)
+			
+			--bike move left
+			elseif PlayerExtra1[i] == 23 then Facing2[i] = 0 CurrentFacingDirection[i] = 1 AnimatePlayerMovement(i, 9)
+			
+			--bike move right
+			elseif PlayerExtra1[i] == 24 then Facing2[i] = 1 CurrentFacingDirection[i] = 2 AnimatePlayerMovement(i, 15)
+			
+			--bike fast move down
+			elseif PlayerExtra1[i] == 25 then Facing2[i] = 0 CurrentFacingDirection[i] = 4 AnimatePlayerMovement(i, 7)
+			
+			--bike fast move up
+			elseif PlayerExtra1[i] == 26 then Facing2[i] = 0 CurrentFacingDirection[i] = 3 AnimatePlayerMovement(i, 8)
+			
+			--bike fast move left
+			elseif PlayerExtra1[i] == 27 then Facing2[i] = 0 CurrentFacingDirection[i] = 1 AnimatePlayerMovement(i, 9)
+			
+			--bike fast move right
+			elseif PlayerExtra1[i] == 28 then Facing2[i] = 1 CurrentFacingDirection[i] = 2 AnimatePlayerMovement(i, 15)
+			
+			--bike hit wall down
+			elseif PlayerExtra1[i] == 29 then createChars(PlayerChar,12,PlayerExtra2[i]) CurrentFacingDirection[i] = 4 Facing2[i] = 0 AnimatePlayerMovement(i, 251)
+			
+			--bike hit wall up
+			elseif PlayerExtra1[i] == 30 then createChars(PlayerChar,11,PlayerExtra2[i]) CurrentFacingDirection[i] = 3 Facing2[i] = 0 AnimatePlayerMovement(i, 252)
+			
+			--bike hit wall left
+			elseif PlayerExtra1[i] == 31 then createChars(PlayerChar,10,PlayerExtra2[i]) CurrentFacingDirection[i] = 1 Facing2[i] = 0 AnimatePlayerMovement(i, 253)
+			
+			--bike hit wall right
+			elseif PlayerExtra1[i] == 32 then createChars(PlayerChar,10,PlayerExtra2[i]) CurrentFacingDirection[i] = 2 Facing2[i] = 1 AnimatePlayerMovement(i, 254)
+			
+			--Surfing
+			
+			--Facing down
+			elseif PlayerExtra1[i] == 33 then CurrentFacingDirection[i] = 4 Facing2[i] = 0 AnimatePlayerMovement(i, 17)
+			
+			--Facing up
+			elseif PlayerExtra1[i] == 34 then CurrentFacingDirection[i] = 3 Facing2[i] = 0 AnimatePlayerMovement(i, 18)
+			
+			--Facing left
+			elseif PlayerExtra1[i] == 35 then CurrentFacingDirection[i] = 1 Facing2[i] = 0 AnimatePlayerMovement(i, 19)
+			
+			--Facing right
+			elseif PlayerExtra1[i] == 36 then CurrentFacingDirection[i] = 2 Facing2[i] = 1 AnimatePlayerMovement(i, 20)
+			
+			--surf down
+			elseif PlayerExtra1[i] == 37 then Facing2[i] = 0 CurrentFacingDirection[i] = 4 AnimatePlayerMovement(i, 21)
+			
+			--surf up
+			elseif PlayerExtra1[i] == 38 then Facing2[i] = 0 CurrentFacingDirection[i] = 3 AnimatePlayerMovement(i, 22)
+			
+			--surf left
+			elseif PlayerExtra1[i] == 39 then Facing2[i] = 0 CurrentFacingDirection[i] = 1 AnimatePlayerMovement(i, 23)
+			
+			--surf right
+			elseif PlayerExtra1[i] == 40 then Facing2[i] = 1 CurrentFacingDirection[i] = 2 AnimatePlayerMovement(i, 24)
+			
+			
+			--default position
+			elseif PlayerExtra1[i] == 0 then Facing2[i] = 0 AnimatePlayerMovement(i, 255)
+			
 			end
 		end
 	end
-	
-	--Player 2 sprite
-	if PlayerID ~= 2 then
-	
-		--While another player is loading into another map. One time
-		if NewMap2 ~= 0 then
-			MapX2 = MapStartX2
-			MapY2 = MapStartY2
-		end
-		--if TempVar2 == 0 then ConsoleForText:print("PlayerExtra2: " .. Player2Extra2) end
-		--Facing down
-		if Player2Extra1 == 1 then createChars(1,3,Player2Extra2) Player2Direction = 4 Facing2 = 0 AnimatePlayerMovement(2, 251)
-		
-		--Facing up
-		elseif Player2Extra1 == 2 then createChars(1,2,Player2Extra2) Player2Direction = 3 Facing2 = 0 AnimatePlayerMovement(2, 252)
-		
-		--Facing left
-		elseif Player2Extra1 == 3 then createChars(1,1,Player2Extra2) Player2Direction = 1 Facing2 = 0 AnimatePlayerMovement(2, 253)
-		
-		--Facing right
-		elseif Player2Extra1 == 4 then createChars(1,1,Player2Extra2) Player2Direction = 2 Facing2 = 1 AnimatePlayerMovement(2, 254)
-		
-		--walk down
-		elseif Player2Extra1 == 5 then Facing2 = 0 Player2Direction = 4 AnimatePlayerMovement(2, 1)
-		
-		--walk up
-		elseif Player2Extra1 == 6 then Facing2 = 0 Player2Direction = 3 AnimatePlayerMovement(2, 2)
-		
-		--walk left
-		elseif Player2Extra1 == 7 then Facing2 = 0 Player2Direction = 1 AnimatePlayerMovement(2, 3)
-		
-		--walk right
-		elseif Player2Extra1 == 8 then Facing2 = 1 Player2Direction = 2 AnimatePlayerMovement(2, 13)
-		
-		--turn down
-		elseif Player2Extra1 == 9 then Facing2 = 0 Player2Direction = 4 AnimatePlayerMovement(2, 10)
-		
-		--turn up
-		elseif Player2Extra1 == 10 then Facing2 = 0 Player2Direction = 3 AnimatePlayerMovement(2, 11)
-		
-		--turn left
-		elseif Player2Extra1 == 11 then Facing2 = 0 Player2Direction = 1 AnimatePlayerMovement(2, 12)
-		
-		--turn right
-		elseif Player2Extra1 == 12 then Facing2 = 1 Player2Direction = 2 AnimatePlayerMovement(2, 12)
-		
-		--run down
-		elseif Player2Extra1 == 13 then Facing2 = 0 Player2Direction = 4 AnimatePlayerMovement(2, 4)
-		
-		--run up
-		elseif Player2Extra1 == 14 then Facing2 = 0 Player2Direction = 3 AnimatePlayerMovement(2, 5)
-		
-		--run left
-		elseif Player2Extra1 == 15 then Facing2 = 0 Player2Direction = 1 AnimatePlayerMovement(2, 6)
-		
-		--run right
-		elseif Player2Extra1 == 16 then Facing2 = 1 Player2Direction = 2 AnimatePlayerMovement(2, 14)
-		
-		--bike face down
-		elseif Player2Extra1 == 17 then createChars(1,12,Player2Extra2) Player2Direction = 4 Facing2 = 0 AnimatePlayerMovement(2, 251)
-		
-		--bike face up
-		elseif Player2Extra1 == 18 then createChars(1,11,Player2Extra2) Player2Direction = 3 Facing2 = 0 AnimatePlayerMovement(2, 252)
-		
-		--bike face left
-		elseif Player2Extra1 == 19 then createChars(1,10,Player2Extra2) Player2Direction = 1 Facing2 = 0 AnimatePlayerMovement(2, 253)
-		
-		--bike face right
-		elseif Player2Extra1 == 20 then createChars(1,10,Player2Extra2) Player2Direction = 2 Facing2 = 1 AnimatePlayerMovement(2, 254)
-		
-		--bike move down
-		elseif Player2Extra1 == 21 then Facing2 = 0 Player2Direction = 4 AnimatePlayerMovement(2, 7)
-		
-		--bike move up
-		elseif Player2Extra1 == 22 then Facing2 = 0 Player2Direction = 3 AnimatePlayerMovement(2, 8)
-		
-		--bike move left
-		elseif Player2Extra1 == 23 then Facing2 = 0 Player2Direction = 1 AnimatePlayerMovement(2, 9)
-		
-		--bike move right
-		elseif Player2Extra1 == 24 then Facing2 = 1 Player2Direction = 2 AnimatePlayerMovement(2, 15)
-		
-		--bike fast move down
-		elseif Player2Extra1 == 25 then Facing2 = 0 Player2Direction = 4 AnimatePlayerMovement(2, 7)
-		
-		--bike fast move up
-		elseif Player2Extra1 == 26 then Facing2 = 0 Player2Direction = 3 AnimatePlayerMovement(2, 8)
-		
-		--bike fast move left
-		elseif Player2Extra1 == 27 then Facing2 = 0 Player2Direction = 1 AnimatePlayerMovement(2, 9)
-		
-		--bike fast move right
-		elseif Player2Extra1 == 28 then Facing2 = 1 Player2Direction = 2 AnimatePlayerMovement(2, 15)
-		
-		--bike hit wall down
-		elseif Player2Extra1 == 29 then createChars(1,12,Player2Extra2) Player2Direction = 4 Facing2 = 0 AnimatePlayerMovement(2, 251)
-		
-		--bike hit wall up
-		elseif Player2Extra1 == 30 then createChars(1,11,Player2Extra2) Player2Direction = 3 Facing2 = 0 AnimatePlayerMovement(2, 252)
-		
-		--bike hit wall left
-		elseif Player2Extra1 == 31 then createChars(1,10,Player2Extra2) Player2Direction = 1 Facing2 = 0 AnimatePlayerMovement(2, 253)
-		
-		--bike hit wall right
-		elseif Player2Extra1 == 32 then createChars(1,10,Player2Extra2) Player2Direction = 2 Facing2 = 1 AnimatePlayerMovement(2, 254)
-		
-		
-		--Surfing
-		
-		--Facing down
-		elseif Player2Extra1 == 33 then Player2Direction = 4 Facing2 = 0 AnimatePlayerMovement(2, 17)
-		
-		--Facing up
-		elseif Player2Extra1 == 34 then Player2Direction = 3 Facing2 = 0 AnimatePlayerMovement(2, 18)
-		
-		--Facing left
-		elseif Player2Extra1 == 35 then Player2Direction = 1 Facing2 = 0 AnimatePlayerMovement(2, 19)
-		
-		--Facing right
-		elseif Player2Extra1 == 36 then Player2Direction = 2 Facing2 = 1 AnimatePlayerMovement(2, 20)
-		
-		--surf down
-		elseif Player2Extra1 == 37 then Facing2 = 0 Player2Direction = 4 AnimatePlayerMovement(2, 21)
-		
-		--surf up
-		elseif Player2Extra1 == 38 then Facing2 = 0 Player2Direction = 3 AnimatePlayerMovement(2, 22)
-		
-		--surf left
-		elseif Player2Extra1 == 39 then Facing2 = 0 Player2Direction = 1 AnimatePlayerMovement(2, 23)
-		
-		--surf right
-		elseif Player2Extra1 == 40 then Facing2 = 1 Player2Direction = 2 AnimatePlayerMovement(2, 24)
-		
-		
-		
-		--default position
-		elseif Player2Extra1 == 0 then Facing2 = 0 AnimatePlayerMovement(2, 255)
-		
-		end
-		
-		if NewMap2 ~= 0 then
-			NewMap2 = 0
-			Player2DirectionPrev = Player2Direction
-			if Player2DirectionPrev ~= 0 then
-				if Player2Direction == 1 then
-			--		ConsoleForText:print("Left" .. Player2Extra1)
-					MapStartX2 = MapStartX2 + 1
-				--	MapX2 = MapX2 + 1
-				--Down
-				elseif Player2Direction == 2 then
-			--		ConsoleForText:print("Right" .. Player2Extra1)
-					MapStartX2 = MapStartX2 - 1
-				--	MapX2 = MapX2 - 1
-				--Left
-				elseif Player2Direction == 3 then
-			--		ConsoleForText:print("P2 Up")
-					MapStartY2 = MapStartY2 + 1
-				--	MapY2 = MapY2 + 1
-				--Right
-				elseif Player2Direction == 4 then
-			--		ConsoleForText:print("P2 Down")
-					MapStartY2 = MapStartY2 - 1
-			--		MapY2 = MapY2 - 1
-				end
-			end
-		end
-	end
-	
-	--Player 3 sprite
-	if PlayerID ~= 3 then
-	end
-	
-	--Player 4 sprite
-	if PlayerID ~= 4 then
-	end
-		if PlayerNewMap ~= 0 then
-			if ActualPlayerDirectionPrev ~= 0 then
-			--	ConsoleForText:print("PLAYER MAP CHANGE! DIR: " .. ActualPlayerDirectionPrev)
-				--Up
-				if ActualPlayerDirectionPrev == 1 then
-					NewMapNewX = -1
-				--Down
-				elseif ActualPlayerDirectionPrev == 2 then
-					NewMapNewX = 1
-				--Left
-				elseif ActualPlayerDirectionPrev == 3 then
-					NewMapNewY = -1
-				--Right
-				elseif ActualPlayerDirectionPrev == 4 then
-					NewMapNewY = 1
-				end
-			end
-		end
 end
 
 function CalculateCamera()
-		GetPlayerCamera(0)
 	--	ConsoleForText:print("Player X camera: " .. PlayerMapXMove .. "Player Y camera: " .. PlayerMapYMove)
 	--	ConsoleForText:print("PlayerMapXMove: " .. PlayerMapXMove .. "PlayerMapYMove: " .. PlayerMapYMove .. "PlayerMapXMovePREV: " .. PlayerMapXMovePrev .. "PlayerMapYMovePrev: " .. PlayerMapYMovePrev)
 		
-		local ResetXPos = 0
-		local ResetYPos = 0
+		local PlayerMapXMoveTemp = 0
+		local PlayerMapYMoveTemp = 0
 		
-		if (PlayerMapXMovePrev > 65500 and PlayerMapXMove < 100) then PlayerMapXMove = PlayerMapXMove + 65536 ResetXPos = 1
-		elseif (PlayerMapXMovePrev < 100 and PlayerMapXMove > 65500) then PlayerMapXMove = PlayerMapXMove - 65536 ResetXPos = 2 end
-		if (PlayerMapYMovePrev > 65500 and PlayerMapYMove < 100) then PlayerMapYMove = PlayerMapYMove + 65536 ResetYPos = 1
-		elseif (PlayerMapYMovePrev < 100 and PlayerMapYMove > 65500) then PlayerMapYMove = PlayerMapYMove - 65536 ResetYPos = 2 end
-		
-		local PlayerXCameraTemp = PlayerMapXMovePrev - PlayerMapXMove
-		local PlayerYCameraTemp = PlayerMapYMovePrev - PlayerMapYMove
-		
-		if ResetXPos == 1 then PlayerMapXMove = PlayerMapXMove - 65536 ResetXPos = 0
-		elseif ResetXPos == 2 then PlayerMapXMove = PlayerMapXMove + 65536 ResetXPos = 0 end
-		if ResetYPos == 1 then PlayerMapYMove = PlayerMapYMove - 65536 ResetYPos = 0
-		elseif ResetYPos == 2 then PlayerMapYMove = PlayerMapYMove + 65536 ResetYPos = 0 end
-	--	if PlayerXCameraTemp > 30000 then PlayerXCameraTemp = PlayerXCameraTemp - 62355 end
-	--	if PlayerYCameraTemp > 30000 then PlayerYCameraTemp = PlayerYCameraTemp - 62355 end
-	--	if PlayerXCameraTemp < -30000 then PlayerXCameraTemp = PlayerXCameraTemp + 62355 end
-	--	if PlayerYCameraTemp < -30000 then PlayerYCameraTemp = PlayerYCameraTemp + 62355 end
-	--	if PlayerXCameraTemp ~= 0 then ConsoleForText:print("PlayerXMove: " .. PlayerMapXMove .. "PlayerXMovePrev: " .. PlayerMapXMovePrev) end
-		
-		--Animate left movement
-	--	if TempVar2 == 0 then ConsoleForText:print("PlayerYCameraTemp: " .. PlayerYCameraTemp .. " PlayerMapYMovePrev: " .. PlayerMapYMovePrev .. " PlayerMapYMove: " .. PlayerMapYMove) end
-		if PlayerXCameraTemp > 0 then
-			PlayerXCamera = PlayerXCamera + PlayerXCameraTemp
-		--	ConsoleForText:print("Moving left.")
-			
-		--Animate right movement
-		elseif PlayerXCameraTemp < 0 then
-			PlayerXCamera = PlayerXCamera + PlayerXCameraTemp
-	--		ConsoleForText:print("Moving right.")
-		else
-			PlayerXCamera = 0
+		if GameID == "BPR1" or GameID == "BPR2" then
+			--Addresses for Firered
+			PlayerMapXMoveAddress = 33687132
+			PlayerMapYMoveAddress = 33687134
+		elseif GameID == "BPG1" or GameID == "BPG2"  then
+			--Addresses for Leafgreen
+			PlayerMapXMoveAddress = 33687132
+			PlayerMapYMoveAddress = 33687134
 		end
-		
-		
-		--Animate down movement
-		if PlayerYCameraTemp > 0 then
-			PlayerYCamera = PlayerYCamera + PlayerYCameraTemp
-	--		ConsoleForText:print("Moving up.")
+		--if PlayerMapChange == 1 then
+			--Update first if map change
+			PlayerMapXMovePrev = emu:read16(PlayerMapXMoveAddress) - 8
+			PlayerMapYMovePrev = emu:read16(PlayerMapYMoveAddress)
+			PlayerMapXMoveTemp = PlayerMapXMovePrev % 16
+			PlayerMapYMoveTemp = PlayerMapYMovePrev % 16
 			
-		--Animate up movement
-		elseif PlayerYCameraTemp < 0 then
-			PlayerYCamera = PlayerYCamera + PlayerYCameraTemp
-	--		ConsoleForText:print("Moving down.")
-		else
-			PlayerYCamera = 0
+			if PlayerDirection == 1 then
+				CameraX = PlayerMapXMoveTemp * -1
+			--	console:log("XTEMP: " .. PlayerMapXMoveTemp)
+			elseif PlayerDirection == 2 then
+				if PlayerMapXMoveTemp > 0 then
+					CameraX = 16 - PlayerMapXMoveTemp
+				else
+					CameraX = 0
+				end
+				--console:log("XTEMP: " .. PlayerMapXMoveTemp)
+			elseif PlayerDirection == 3 then
+				CameraY = PlayerMapYMoveTemp * -1
+				--console:log("YTEMP: " .. PlayerMapYMoveTemp)
+			elseif PlayerDirection == 4 then
+				--console:log("YTEMP: " .. PlayerMapYMoveTemp)
+				if PlayerMapYMoveTemp > 0 then
+					CameraY = 16 - PlayerMapYMoveTemp
+				else
+					CameraY = 0
+				end
+			end
+			
+			--Calculations for X and Y of new map
+			if PlayerMapChange == 1 and (CameraX == 0 and CameraY == 0) then
+				PlayerMapChange = 0
+				StartX[PlayerID] = PlayerMapX
+				StartY[PlayerID] = PlayerMapY
+				DifferentMapXPlayer = (StartX[PlayerID] - PreviousX[PlayerID]) * 16
+				DifferentMapYPlayer = (StartY[PlayerID] - PreviousY[PlayerID]) * 16
+				if PlayerDirection == 1 then
+					StartX[PlayerID] = StartX[PlayerID] + 1
+				elseif PlayerDirection == 2 then
+					StartX[PlayerID] = StartX[PlayerID] - 1
+				elseif PlayerDirection == 3 then
+					StartY[PlayerID] = StartY[PlayerID] + 1
+				elseif PlayerDirection == 4 then
+					StartY[PlayerID] = StartY[PlayerID] - 1
+				end
+			--	console:log("YOU HAVE MOVED MAPS")
+				--For New Positions if player moves
+			--	console:log("X: " .. DifferentMapX[i] .. " Y: " .. DifferentMapY[i])
+				--if PlayerDirection == 4 then
+				--	DifferentMapY[i] = DifferentMapY[i] + 16
+				--end
+			end
+end
+
+function CalculateRelativePositions()
+	local TempX = 0
+	local TempY = 0
+	local TempX2 = 0
+	local TempY2 = 0
+	for i = 1, MaxPlayers do
+		TempX = ((CurrentX[i] - PlayerMapX) * 16) + DifferentMapX[i]
+		TempY = ((CurrentY[i] - PlayerMapY) * 16) + DifferentMapY[i]
+		if PlayerID ~= i and PlayerIDNick[i] ~= "None" then
+			if PlayerMapEntranceType == 0 and (PlayerMapIDPrev == CurrentMapID[i] or PlayerMapID == PreviousMapID[i]) and MapChange[i] == 0 then
+				PlayerVis[i] = 1
+				TempX2 = TempX + DifferentMapXPlayer
+				TempY2 = TempY + DifferentMapYPlayer
+			else
+				TempX2 = TempX
+				TempY2 = TempY
+			end
+			--AnimationX is -16 - 16 and is purely to animate sprites
+			--CameraX can be between -16 and 16 and is to get the camera movement while moving
+			--Current X is the X the current sprite has
+			--Player X is the X the player sprite has
+			RelativeX[i] = AnimationX[i] + CameraX + TempX2
+			RelativeY[i] = AnimationY[i] + CameraY + TempY2
+			--console:log("X: " .. RelativeX[i] .. " " .. CurrentX[i] .. " " .. PlayerMapX .. " " .. DifferentMapX[i])
+			--console:log("Y: " .. RelativeY[i] .. " " .. AnimationY[i] .. " " .. CameraY .. " " .. TempY)
 		end
-		
-	--		if NewMapNewX == -15 then PlayerXCamera = 0 end
-			if NewMapNewX < 0 then if NewMapNewX > -16 then NewMapNewX = NewMapNewX - 1 PlayerXCamera = PlayerXCamera -1 end end
-	--		if NewMapNewX == 15 then PlayerXCamera = 0 end
-			if NewMapNewX > 0 then if NewMapNewX < 16 then NewMapNewX = NewMapNewX + 1 PlayerXCamera = PlayerXCamera +1 end end
-	--		if NewMapNewY == -15 then PlayerYCamera = 0 end
-	 		if NewMapNewY < 0 then if NewMapNewY > -16 then NewMapNewY = NewMapNewY - 1 PlayerYCamera = PlayerYCamera -1 end end
-	--		if NewMapNewY == 15 then PlayerYCamera = 0 end
-			if NewMapNewY > 0 then if NewMapNewY < 16 then NewMapNewY = NewMapNewY + 1 PlayerYCamera = PlayerYCamera +1 end end
+	end
 end
 
 
 function DrawChars()
 	if EnableScript == true then
 		NoPlayersIfScreen()
-		if ScreenData == 1 then
 				--Make sure the sprites are loaded
 			
-		HidePlayers()
 		HandleSprites()
 		CalculateCamera()
-			if PlayerID ~= 1 then
-				DrawPlayer1()
-			else
-				ErasePlayer1()
+		RenderPlayersOnDifferentMap()
+		CalculateRelativePositions()
+		if ScreenData == 1 then
+			for i = 1, MaxPlayers do
+				if HasErasedPlayer[i] == false then
+					HasErasedPlayer[i] = true
+					ErasePlayer(i)
+				end
+				if PlayerID ~= i and PlayerIDNick[i] ~= "None" then
+					DrawPlayer(i)
+				end
 			end
-			if PlayerID ~= 2 then
-				DrawPlayer2()
-			else
-				ErasePlayer2()
+		else
+			for i = 1, MaxPlayers do
+				HasErasedPlayer[i] = false
 			end
-		--	if PlayerID ~= 3 then DrawPlayer3() end
-		--	if PlayerID ~= 4 then DrawPlayer4() end
 		end
 	end
 end
 
 
-function DrawPlayer1()
+function DrawPlayer(PlayerNo)
 		local u32 PlayerYAddress = 0
 		local u32 PlayerXAddress = 0
 		local u32 PlayerFaceAddress = 0
@@ -21166,9 +20388,15 @@ function DrawPlayer1()
 		local u32 PlayerExtra2Address = 0
 		local u32 PlayerExtra3Address = 0
 		local u32 PlayerExtra4Address = 0
+		local SpriteNo1 = 2608 - ((PlayerNo - 1) * 40)
+		local SpriteNo2 = SpriteNo1 + 18
+		--For extra char if not biking
+		local SpriteNo3 = SpriteNo1 + 8
+		--For extra char if biking
+		local SpriteNo4 = SpriteNo1 + 16
 		if GameID == "BPR1" or GameID == "BPR2" then
 			--Addresses for Firered
-			Player1Address = 50345168
+			Player1Address = 50345200 - ((PlayerNo - 1) * 24)
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -21179,7 +20407,7 @@ function DrawPlayer1()
 			PlayerExtra4Address = PlayerYAddress + 7
 		elseif GameID == "BPG1" or GameID == "BPG2" then
 			--Addresses for Leafgreen
-			Player1Address = 50345168
+			Player1Address = 50345200 - ((PlayerNo - 1) * 24)
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -21189,62 +20417,40 @@ function DrawPlayer1()
 			PlayerExtra3Address = PlayerYAddress + 6
 			PlayerExtra4Address = PlayerYAddress + 7
 		end
-		--X and Y vars
-		local FinalMapX = MapX * 16 + PlayerXCamera + PlayerXCamera2
-		local FinalMapY = MapY * 16 + PlayerYCamera + PlayerYCamera2
 		
-		--Freeze position of player character until after animation
-		if PlayerXCamera == 0 then PlayerX = PlayerMapX * 16 end
-		if PlayerYCamera == 0 then PlayerY = PlayerMapY * 16 end
 		--Screen size (take into account movement)
 		local MinX = -16
 		local MaxX = 240
 		local MinY = -32
 		local MaxY = 144
-		if PlayerExtra1 >= 17 and PlayerExtra1 <= 32 then MinX = -8 end
-		FinalMapX = FinalMapX + NewMapXPos - PlayerX + 112
-		FinalMapY = FinalMapY + NewMapYPos - PlayerY + 56
+		--This is for the bike + surf
+		if PlayerExtra1[PlayerNo] >= 17 and PlayerExtra1[PlayerNo] <= 40 then MinX = -8 end
+		if PlayerExtra1[PlayerNo] >= 33 and PlayerExtra1[PlayerNo] <= 40 then MinX = 8 end
+		
+		--112 and 56 = middle of screen
+		local FinalMapX = RelativeX[PlayerNo] + 112
+		local FinalMapY = RelativeY[PlayerNo] + 56
 		
 		--Flip sprite if facing right
-		local FacingTemp = Facing
-		if FacingTemp == 1 then FacingTemp = 144
+		local FacingTemp = 128
+		if Facing2[PlayerNo] == 1 then FacingTemp = 144
 		else FacingTemp = 128
 		end
 		
-	--	if TempVar2 == 0 then ConsoleForText:print("Player2Vis: " .. Player2Vis .. " Player2Y: " .. FinalMapY .. " Player2X: " .. FinalMapX) end
-	--	ConsoleForText:print("Attempting to create player 1. X: " .. MapX .. " Y: " .. MapY)
---		if TempVar2 == 0 then ConsoleForText:print("CURRY PLAYER2: " .. MapStartY2 .. "MAXY PLAYER2: " .. MapY2Prev) end
---		if TempVar2 == 0 then ConsoleForText:print("FINALYP1: " .. FinalMapY .. "CURRY PLAYER1: " .. MapStartY .. "MAXY PLAYER1: " .. MapYPrev) end
 		if not ((FinalMapX > MaxX or FinalMapX < MinX) or (FinalMapY > MaxY or FinalMapY < MinY)) then 
-			--128 = left, 144 = right facing
-			--Facing = 128
-			--Sprite effects. 128 is standard, 131 is water effects
-			-- extra 1 and 2 are connected to the sprite
-			-- 16/152 or 10/98 are for multiplayer rooms
-			--extra 1 is the sprite bank, as well as the priority and pallete. Binary.
-			--PlayerExtra1 = 2176
-			--extra 3 goes from 0 to FC, then to 4. extra 4 adds/subtracts 1 every time this hits 0
-			--PlayerExtra3 = 255
-			--PlayerExtra4 = 0
 			
-			--38 and 70 are the middle of the screen
-			--16 bytes per up or down. 1 bit up or down per frame for animation
-			
-			--Subtract camera and player position from the final result
-			
-			
-			if Player1Vis == 1 then
+			if PlayerVis[PlayerNo] == 1 then
 				--Bikes need different vars
-				if PlayerExtra1 >= 17 and PlayerExtra1 <= 32 then
+				if PlayerExtra1[PlayerNo] >= 17 and PlayerExtra1[PlayerNo] <= 32 then
 				FinalMapX = FinalMapX - 8
 				emu:write8(PlayerXAddress, FinalMapX)
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 2560)
+				emu:write16(PlayerExtra1Address, SpriteNo1)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
-				--Surfing char
+				--Surfing char erase
 				PlayerYAddress = Player1Address + 8
 				PlayerXAddress = PlayerYAddress + 2
 				PlayerFaceAddress = PlayerYAddress + 3
@@ -21260,19 +20466,99 @@ function DrawPlayer1()
 				emu:write16(PlayerExtra1Address, 12)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 1)
+				--Add fighting symbol if in battle
+					if PlayerExtra4[PlayerNo] == 1 then
+						local SymbolY = FinalMapY - 8
+						local SymbolX = FinalMapX + 8
+						local Charpic = PlayerNo - 1
+						--Create battle symbol
+						createChars(Charpic, 1, 2, 1)
+						--Extra Char
+						PlayerYAddress = Player1Address + 16
+						PlayerXAddress = PlayerYAddress + 2
+						PlayerFaceAddress = PlayerYAddress + 3
+						PlayerSpriteAddress = PlayerYAddress + 1
+						PlayerExtra1Address = PlayerYAddress + 4
+						PlayerExtra2Address = PlayerYAddress + 5
+						PlayerExtra3Address = PlayerYAddress + 6
+						PlayerExtra4Address = PlayerYAddress + 7
+						emu:write8(PlayerYAddress, SymbolY)
+						emu:write8(PlayerXAddress, SymbolX)
+						emu:write8(PlayerFaceAddress, 64)
+						emu:write8(PlayerSpriteAddress, 0)
+						emu:write16(PlayerExtra1Address, SpriteNo4)
+						emu:write8(PlayerExtra3Address, 0)
+						emu:write8(PlayerExtra4Address, 1)
+					else
+						PlayerYAddress = Player1Address + 16
+						PlayerXAddress = PlayerYAddress + 2
+						PlayerFaceAddress = PlayerYAddress + 3
+						PlayerSpriteAddress = PlayerYAddress + 1
+						PlayerExtra1Address = PlayerYAddress + 4
+						PlayerExtra2Address = PlayerYAddress + 5
+						PlayerExtra3Address = PlayerYAddress + 6
+						PlayerExtra4Address = PlayerYAddress + 7
+						emu:write8(PlayerYAddress, 160)
+						emu:write8(PlayerXAddress, 48)
+						emu:write8(PlayerFaceAddress, 1)
+						emu:write8(PlayerSpriteAddress, 0)
+						emu:write16(PlayerExtra1Address, 12)
+						emu:write8(PlayerExtra3Address, 0)
+						emu:write8(PlayerExtra4Address, 1)
+					end
 				--Same with surf
-				elseif PlayerExtra1 >= 33 and PlayerExtra1 <= 40 then
-				if Player1AnimationFrame2 == 1 and PlayerExtra1 <= 36 then FinalMapY = FinalMapY + 1 end
+				elseif PlayerExtra1[PlayerNo] >= 33 and PlayerExtra1[PlayerNo] <= 40 then
+				if PlayerAnimationFrame2[PlayerNo] == 1 and PlayerExtra1[PlayerNo] <= 36 then FinalMapY = FinalMapY + 1 end
 				--Sitting char
 				emu:write8(PlayerXAddress, FinalMapX)
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2560)
+				emu:write16(PlayerExtra1Address, SpriteNo1)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
+				--Add fighting symbol if in battle
+				if PlayerExtra4[PlayerNo] == 1 then
+					local SymbolY = FinalMapY - 8
+					local SymbolX = FinalMapX
+					local Charpic = PlayerNo - 1
+					--Create battle symbol
+					createChars(Charpic, 1, 2, 0)
+					--Extra Char
+					PlayerYAddress = Player1Address + 16
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, SymbolY)
+					emu:write8(PlayerXAddress, SymbolX)
+					emu:write8(PlayerFaceAddress, 64)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, SpriteNo3)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
+				else
+					PlayerYAddress = Player1Address + 16
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
+				end
 				--Surfing char
-				if Player1AnimationFrame2 == 1 and PlayerExtra1 <= 36 then FinalMapY = FinalMapY - 1 end
+				if PlayerAnimationFrame2[PlayerNo] == 1 and PlayerExtra1[PlayerNo] <= 36 then FinalMapY = FinalMapY - 1 end
 				FinalMapX = FinalMapX - 8
 				FinalMapY = FinalMapY + 8
 				PlayerYAddress = Player1Address + 8
@@ -21287,7 +20573,7 @@ function DrawPlayer1()
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 2578)
+				emu:write16(PlayerExtra1Address, SpriteNo2)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
 				else
@@ -21295,7 +20581,7 @@ function DrawPlayer1()
 				emu:write8(PlayerYAddress, FinalMapY)
 				emu:write8(PlayerFaceAddress, FacingTemp)
 				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2560)
+				emu:write16(PlayerExtra1Address, SpriteNo1)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 0)
 				--Surfing char
@@ -21314,6 +20600,46 @@ function DrawPlayer1()
 				emu:write16(PlayerExtra1Address, 12)
 				emu:write8(PlayerExtra3Address, 0)
 				emu:write8(PlayerExtra4Address, 1)
+				--Add fighting symbol if in battle
+					if PlayerExtra4[PlayerNo] == 1 then
+						local SymbolY = FinalMapY - 8
+						local SymbolX = FinalMapX
+						local Charpic = PlayerNo - 1
+						--Create battle symbol
+						createChars(Charpic, 1, 2, 0)
+						--Extra Char
+						PlayerYAddress = Player1Address + 16
+						PlayerXAddress = PlayerYAddress + 2
+						PlayerFaceAddress = PlayerYAddress + 3
+						PlayerSpriteAddress = PlayerYAddress + 1
+						PlayerExtra1Address = PlayerYAddress + 4
+						PlayerExtra2Address = PlayerYAddress + 5
+						PlayerExtra3Address = PlayerYAddress + 6
+						PlayerExtra4Address = PlayerYAddress + 7
+						emu:write8(PlayerYAddress, SymbolY)
+						emu:write8(PlayerXAddress, SymbolX)
+						emu:write8(PlayerFaceAddress, 64)
+						emu:write8(PlayerSpriteAddress, 0)
+						emu:write16(PlayerExtra1Address, SpriteNo3)
+						emu:write8(PlayerExtra3Address, 0)
+						emu:write8(PlayerExtra4Address, 1)
+					else
+						PlayerYAddress = Player1Address + 16
+						PlayerXAddress = PlayerYAddress + 2
+						PlayerFaceAddress = PlayerYAddress + 3
+						PlayerSpriteAddress = PlayerYAddress + 1
+						PlayerExtra1Address = PlayerYAddress + 4
+						PlayerExtra2Address = PlayerYAddress + 5
+						PlayerExtra3Address = PlayerYAddress + 6
+						PlayerExtra4Address = PlayerYAddress + 7
+						emu:write8(PlayerYAddress, 160)
+						emu:write8(PlayerXAddress, 48)
+						emu:write8(PlayerFaceAddress, 1)
+						emu:write8(PlayerSpriteAddress, 0)
+						emu:write16(PlayerExtra1Address, 12)
+						emu:write8(PlayerExtra3Address, 0)
+						emu:write8(PlayerExtra4Address, 1)
+					end
 				end
 			--Remove sprite
 			else
@@ -21340,6 +20666,22 @@ function DrawPlayer1()
 					emu:write16(PlayerExtra1Address, 12)
 					emu:write8(PlayerExtra3Address, 0)
 					emu:write8(PlayerExtra4Address, 1)
+					--Extra Char
+					PlayerYAddress = Player1Address + 16
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
 			end
 		--Remove sprite
 		else
@@ -21366,9 +20708,25 @@ function DrawPlayer1()
 					emu:write16(PlayerExtra1Address, 12)
 					emu:write8(PlayerExtra3Address, 0)
 					emu:write8(PlayerExtra4Address, 1)
+					--Extra Char
+					PlayerYAddress = Player1Address + 16
+					PlayerXAddress = PlayerYAddress + 2
+					PlayerFaceAddress = PlayerYAddress + 3
+					PlayerSpriteAddress = PlayerYAddress + 1
+					PlayerExtra1Address = PlayerYAddress + 4
+					PlayerExtra2Address = PlayerYAddress + 5
+					PlayerExtra3Address = PlayerYAddress + 6
+					PlayerExtra4Address = PlayerYAddress + 7
+					emu:write8(PlayerYAddress, 160)
+					emu:write8(PlayerXAddress, 48)
+					emu:write8(PlayerFaceAddress, 1)
+					emu:write8(PlayerSpriteAddress, 0)
+					emu:write16(PlayerExtra1Address, 12)
+					emu:write8(PlayerExtra3Address, 0)
+					emu:write8(PlayerExtra4Address, 1)
 		end
 end
-function ErasePlayer1()
+function ErasePlayer(PlayerNo)
 		local u32 PlayerYAddress = 0
 		local u32 PlayerXAddress = 0
 		local u32 PlayerFaceAddress = 0
@@ -21379,7 +20737,7 @@ function ErasePlayer1()
 		local u32 PlayerExtra4Address = 0
 		if GameID == "BPR1" or GameID == "BPR2" then
 			--Addresses for Firered
-			Player1Address = 50345168
+			Player1Address = 50345200 - ((PlayerNo - 1) * 24)
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -21390,7 +20748,7 @@ function ErasePlayer1()
 			PlayerExtra4Address = PlayerYAddress + 7
 		elseif GameID == "BPG1" or GameID == "BPG2" then
 			--Addresses for Leafgreen
-			Player1Address = 50345168
+			Player1Address = 50345200 - ((PlayerNo - 1) * 24)
 			PlayerYAddress = Player1Address
 			PlayerXAddress = PlayerYAddress + 2
 			PlayerFaceAddress = PlayerYAddress + 3
@@ -21423,247 +20781,8 @@ function ErasePlayer1()
 					emu:write16(PlayerExtra1Address, 12)
 					emu:write8(PlayerExtra3Address, 0)
 					emu:write8(PlayerExtra4Address, 1)
-end
-function DrawPlayer2()
-		local u32 PlayerYAddress = 0
-		local u32 PlayerXAddress = 0
-		local u32 PlayerFaceAddress = 0
-		local u32 PlayerSpriteAddress = 0
-		local u32 PlayerExtra1Address = 0
-		local u32 PlayerExtra2Address = 0
-		local u32 PlayerExtra3Address = 0
-		local u32 PlayerExtra4Address = 0
-		if GameID == "BPR1" or GameID == "BPR2" then
-			--Addresses for Firered
-			Player1Address = 50345184
-			PlayerYAddress = Player1Address
-			PlayerXAddress = PlayerYAddress + 2
-			PlayerFaceAddress = PlayerYAddress + 3
-			PlayerSpriteAddress = PlayerYAddress + 1
-			PlayerExtra1Address = PlayerYAddress + 4
-			PlayerExtra2Address = PlayerYAddress + 5
-			PlayerExtra3Address = PlayerYAddress + 6
-			PlayerExtra4Address = PlayerYAddress + 7
-		elseif GameID == "BPG1" or GameID == "BPG2" then
-			--Addresses for Leafgreen
-			Player1Address = 50345184
-			PlayerYAddress = Player1Address
-			PlayerXAddress = PlayerYAddress + 2
-			PlayerFaceAddress = PlayerYAddress + 3
-			PlayerSpriteAddress = PlayerYAddress + 1
-			PlayerExtra1Address = PlayerYAddress + 4
-			PlayerExtra2Address = PlayerYAddress + 5
-			PlayerExtra3Address = PlayerYAddress + 6
-			PlayerExtra4Address = PlayerYAddress + 7
-		end
-		
-		
-		--X and Y vars
-		local FinalMapX = MapX2 * 16 + PlayerXCamera + PlayerXCamera2
-		local FinalMapY = MapY2 * 16 + PlayerYCamera + PlayerYCamera2
-		local TempTemp = MapY2 * 16	
-		
-		--Freeze position of player character until after animation
-		if PlayerXCamera == 0 then PlayerX2 = PlayerMapX * 16 end
-		if PlayerYCamera == 0 then PlayerY2 = PlayerMapY * 16 end
-		--Screen size (take into account movement)
-		local MinX = -16
-		local MaxX = 240
-		local MinY = -32
-		local MaxY = 144
-		if Player2Extra1 >= 17 and Player2Extra1 <= 32 then MinX = -8 end
-		FinalMapX = FinalMapX + NewMapX2Pos - PlayerX2 + 112
-		FinalMapY = FinalMapY + NewMapY2Pos - PlayerY2 + 56
---		FinalMapX = FinalMapX - PlayerX2 + 112
---		FinalMapY = FinalMapY - PlayerY2 + 56
---		if TempVar2 == 0 then ConsoleForText:print("PlayerY2POS: " .. NewMapY2Pos .. " PlayerY2: " .. PlayerY2) end
-		
-		--Flip sprite if facing right
-		local FacingTemp = Facing2
-		if FacingTemp == 1 then FacingTemp = 144
-		else FacingTemp = 128
-		end
---		if TempVar2 == 0 then ConsoleForText:print("MapX: " .. MapX2 .. " PlayerXCamera2: " .. PlayerXCamera2) end
-	--	if TempVar2 == 0 then ConsoleForText:print("MapY: " .. MapY2 .. " PlayerXCamera2: " .. PlayerYCamera2) end
-		if not ((FinalMapX > MaxX or FinalMapX < MinX) or (FinalMapY > MaxY or FinalMapY < MinY)) then 
-			
-			if Player2Vis == 1 then
-		--		if TempVar2 == 0 then ConsoleForText:print("EXTRA 1: " .. Player2Extra1) end
-				--Bikes need different vars
-				if Player2Extra1 >= 17 and Player2Extra1 <= 32 then
-				FinalMapX = FinalMapX - 8
-				emu:write8(PlayerXAddress, FinalMapX)
-				emu:write8(PlayerYAddress, FinalMapY)
-				emu:write8(PlayerFaceAddress, FacingTemp)
-				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 2592)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 0)
-					--Surfing char
-					PlayerYAddress = Player1Address + 8
-					PlayerXAddress = PlayerYAddress + 2
-					PlayerFaceAddress = PlayerYAddress + 3
-					PlayerSpriteAddress = PlayerYAddress + 1
-					PlayerExtra1Address = PlayerYAddress + 4
-					PlayerExtra2Address = PlayerYAddress + 5
-					PlayerExtra3Address = PlayerYAddress + 6
-					PlayerExtra4Address = PlayerYAddress + 7
-					emu:write8(PlayerYAddress, 160)
-					emu:write8(PlayerXAddress, 48)
-					emu:write8(PlayerFaceAddress, 1)
-					emu:write8(PlayerSpriteAddress, 0)
-					emu:write16(PlayerExtra1Address, 12)
-					emu:write8(PlayerExtra3Address, 0)
-					emu:write8(PlayerExtra4Address, 1)
-				--Same with surf
-				elseif Player2Extra1 >= 33 and Player2Extra1 <= 40 then
-				--Sitting char
-				if Player2AnimationFrame2 == 1 and Player2Extra1 <= 36 then FinalMapY = FinalMapY + 1 end
-				emu:write8(PlayerXAddress, FinalMapX)
-				emu:write8(PlayerYAddress, FinalMapY)
-				emu:write8(PlayerFaceAddress, FacingTemp)
-				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2592)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 0)
-				--Surfing char
-				if Player2AnimationFrame2 == 1 and Player2Extra1 <= 36 then FinalMapY = FinalMapY - 1 end
-				FinalMapX = FinalMapX - 8
-				FinalMapY = FinalMapY + 8
-				PlayerYAddress = Player1Address + 8
-				PlayerXAddress = PlayerYAddress + 2
-				PlayerFaceAddress = PlayerYAddress + 3
-				PlayerSpriteAddress = PlayerYAddress + 1
-				PlayerExtra1Address = PlayerYAddress + 4
-				PlayerExtra2Address = PlayerYAddress + 5
-				PlayerExtra3Address = PlayerYAddress + 6
-				PlayerExtra4Address = PlayerYAddress + 7
-				emu:write8(PlayerXAddress, FinalMapX)
-				emu:write8(PlayerYAddress, FinalMapY)
-				emu:write8(PlayerFaceAddress, FacingTemp)
-				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 2610)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 0)
-				else
-				emu:write8(PlayerXAddress, FinalMapX)
-				emu:write8(PlayerYAddress, FinalMapY)
-				emu:write8(PlayerFaceAddress, FacingTemp)
-				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2592)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 0)
-					--Surfing char
-					PlayerYAddress = Player1Address + 8
-					PlayerXAddress = PlayerYAddress + 2
-					PlayerFaceAddress = PlayerYAddress + 3
-					PlayerSpriteAddress = PlayerYAddress + 1
-					PlayerExtra1Address = PlayerYAddress + 4
-					PlayerExtra2Address = PlayerYAddress + 5
-					PlayerExtra3Address = PlayerYAddress + 6
-					PlayerExtra4Address = PlayerYAddress + 7
-					emu:write8(PlayerYAddress, 160)
-					emu:write8(PlayerXAddress, 48)
-					emu:write8(PlayerFaceAddress, 1)
-					emu:write8(PlayerSpriteAddress, 0)
-					emu:write16(PlayerExtra1Address, 12)
-					emu:write8(PlayerExtra3Address, 0)
-					emu:write8(PlayerExtra4Address, 1)
-				end
-			--Remove sprite
-			else
-					emu:write8(PlayerYAddress, 160)
-					emu:write8(PlayerXAddress, 48)
-					emu:write8(PlayerFaceAddress, 1)
-					emu:write8(PlayerSpriteAddress, 0)
-					emu:write16(PlayerExtra1Address, 12)
-					emu:write8(PlayerExtra3Address, 0)
-					emu:write8(PlayerExtra4Address, 1)
-					--Surfing char
-					PlayerYAddress = Player1Address + 8
-					PlayerXAddress = PlayerYAddress + 2
-					PlayerFaceAddress = PlayerYAddress + 3
-					PlayerSpriteAddress = PlayerYAddress + 1
-					PlayerExtra1Address = PlayerYAddress + 4
-					PlayerExtra2Address = PlayerYAddress + 5
-					PlayerExtra3Address = PlayerYAddress + 6
-					PlayerExtra4Address = PlayerYAddress + 7
-					emu:write8(PlayerYAddress, 160)
-					emu:write8(PlayerXAddress, 48)
-					emu:write8(PlayerFaceAddress, 1)
-					emu:write8(PlayerSpriteAddress, 0)
-					emu:write16(PlayerExtra1Address, 12)
-					emu:write8(PlayerExtra3Address, 0)
-					emu:write8(PlayerExtra4Address, 1)
-			end
-		--Remove sprite
-		else
-				emu:write8(PlayerYAddress, 160)
-				emu:write8(PlayerXAddress, 48)
-				emu:write8(PlayerFaceAddress, 1)
-				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 12)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 1)
-					--Surfing char
-					PlayerYAddress = Player1Address + 8
-					PlayerXAddress = PlayerYAddress + 2
-					PlayerFaceAddress = PlayerYAddress + 3
-					PlayerSpriteAddress = PlayerYAddress + 1
-					PlayerExtra1Address = PlayerYAddress + 4
-					PlayerExtra2Address = PlayerYAddress + 5
-					PlayerExtra3Address = PlayerYAddress + 6
-					PlayerExtra4Address = PlayerYAddress + 7
-					emu:write8(PlayerYAddress, 160)
-					emu:write8(PlayerXAddress, 48)
-					emu:write8(PlayerFaceAddress, 1)
-					emu:write8(PlayerSpriteAddress, 0)
-					emu:write16(PlayerExtra1Address, 12)
-					emu:write8(PlayerExtra3Address, 0)
-					emu:write8(PlayerExtra4Address, 1)
-		end
-end
-function ErasePlayer2()
-		local u32 PlayerYAddress = 0
-		local u32 PlayerXAddress = 0
-		local u32 PlayerFaceAddress = 0
-		local u32 PlayerSpriteAddress = 0
-		local u32 PlayerExtra1Address = 0
-		local u32 PlayerExtra2Address = 0
-		local u32 PlayerExtra3Address = 0
-		local u32 PlayerExtra4Address = 0
-		if GameID == "BPR1" or GameID == "BPR2" then
-			--Addresses for Firered
-			Player1Address = 50345184
-			PlayerYAddress = Player1Address
-			PlayerXAddress = PlayerYAddress + 2
-			PlayerFaceAddress = PlayerYAddress + 3
-			PlayerSpriteAddress = PlayerYAddress + 1
-			PlayerExtra1Address = PlayerYAddress + 4
-			PlayerExtra2Address = PlayerYAddress + 5
-			PlayerExtra3Address = PlayerYAddress + 6
-			PlayerExtra4Address = PlayerYAddress + 7
-		elseif GameID == "BPG1" or GameID == "BPG2" then
-			--Addresses for Leafgreen
-			Player1Address = 50345184
-			PlayerYAddress = Player1Address
-			PlayerXAddress = PlayerYAddress + 2
-			PlayerFaceAddress = PlayerYAddress + 3
-			PlayerSpriteAddress = PlayerYAddress + 1
-			PlayerExtra1Address = PlayerYAddress + 4
-			PlayerExtra2Address = PlayerYAddress + 5
-			PlayerExtra3Address = PlayerYAddress + 6
-			PlayerExtra4Address = PlayerYAddress + 7
-		end
-				emu:write8(PlayerYAddress, 160)
-				emu:write8(PlayerXAddress, 48)
-				emu:write8(PlayerFaceAddress, 1)
-				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 12)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 1)
-					--Surfing char
-					PlayerYAddress = Player1Address + 8
+					--Extra Char
+					PlayerYAddress = Player1Address + 16
 					PlayerXAddress = PlayerYAddress + 2
 					PlayerFaceAddress = PlayerYAddress + 3
 					PlayerSpriteAddress = PlayerYAddress + 1
@@ -21679,154 +20798,43 @@ function ErasePlayer2()
 					emu:write8(PlayerExtra3Address, 0)
 					emu:write8(PlayerExtra4Address, 1)
 end
-function DrawPlayer3()
-		if GameID == "BPRE" then
-			--Addresses for Firered
-			Player1Address = 50345200
-			PlayerYAddress = Player1Address
-			PlayerXAddress = PlayerYAddress + 2
-			PlayerFaceAddress = PlayerYAddress + 3
-			PlayerSpriteAddress = PlayerYAddress + 1
-			PlayerExtra1Address = PlayerYAddress + 4
-			PlayerExtra2Address = PlayerYAddress + 5
-			PlayerExtra3Address = PlayerYAddress + 6
-			PlayerExtra4Address = PlayerYAddress + 7
-		end
-		
-		--X and Y vars
-		local FinalMapX = MapX3 * 16 + PlayerXCamera
-		local FinalMapY = MapY3 * 16 + PlayerYCamera
-		
-		
-		--Freeze position of player character until after animation
-		if PlayerXCamera == 0 then PlayerX3 = PlayerMapX * 16 end
-		if PlayerYCamera == 0 then PlayerY3 = PlayerMapY * 16 end
-		--Screen size (take into account movement)
-		local MinX = PlayerMapX - 7
-		local MaxX = PlayerMapX + 7
-		local MinY = PlayerMapY - 5
-		local MaxY = PlayerMapY + 5
-		NewMapX3Pos = Math.floor(NewMapX3Pos)
-		NewMapY3Pos = Math.floor(NewMapY3Pos)
-		FinalMapX = FinalMapX + NewMapX3Pos - PlayerX3 + 112
-		FinalMapY = FinalMapY + NewMapY3Pos - PlayerY3 + 56
-		
-		--Flip sprite if facing right
-		local FacingTemp = Facing3
-		if FacingTemp == 1 then FacingTemp = 144
-		else FacingTemp = 128
-		end
-		
-	--	ConsoleForText:print("MinX" .. MinX .. " " .. MinY .. " " .. MaxX .. " " .. MaxY .. "Player 2 var: " .. FinalMapX .. " " .. FinalMapY .. " " .. PlayerX .. " " .. PlayerY .. " " .. PlayerXCamera .. " " .. PlayerYCamera .. " " .. NewMapX2Pos .. " " .. NewMapY2Pos)
-	--	ConsoleForText:print("Drawing Player 2. X: " .. FinalMapX .. " Y: " .. FinalMapY .. " Player2X: " .. PlayerX2)
-		if not ((MapX3 > MaxX or MapX3 < MinX) or (MapY3 > MaxY or MapY3 < MinY)) then 
-		
-			if Player3Vis == 1 then
-				emu:write8(PlayerXAddress, FinalMapX)
-				emu:write8(PlayerYAddress, FinalMapY)
-				emu:write8(PlayerFaceAddress, FacingTemp)
-				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2624)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 0)
-			--Remove sprite
-			else
-					emu:write8(PlayerXAddress, 160)
-					emu:write8(PlayerYAddress, 48)
-					emu:write8(PlayerFaceAddress, 0)
-					emu:write8(PlayerSpriteAddress, 0)
-					emu:write16(PlayerExtra1Address, 12)
-					emu:write8(PlayerExtra3Address, 0)
-					emu:write8(PlayerExtra4Address, 1)
-			end
-		--Remove sprite
-		else
-				emu:write8(PlayerXAddress, 160)
-				emu:write8(PlayerYAddress, 48)
-				emu:write8(PlayerFaceAddress, 0)
-				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 12)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 1)
-		end
-end
-function DrawPlayer4()
-		if GameID == "BPRE" then
-			--Addresses for Firered
-			Player1Address = 50345216
-			PlayerYAddress = Player1Address
-			PlayerXAddress = PlayerYAddress + 2
-			PlayerFaceAddress = PlayerYAddress + 3
-			PlayerSpriteAddress = PlayerYAddress + 1
-			PlayerExtra1Address = PlayerYAddress + 4
-			PlayerExtra2Address = PlayerYAddress + 5
-			PlayerExtra3Address = PlayerYAddress + 6
-			PlayerExtra4Address = PlayerYAddress + 7
-		end
-		
-		--X and Y vars
-		local FinalMapX = MapX4 * 16 + PlayerXCamera
-		local FinalMapY = MapY4 * 16 + PlayerYCamera
-		
-		
-		--Freeze position of player character until after animation
-		if PlayerXCamera == 0 then PlayerX4 = PlayerMapX * 16 end
-		if PlayerYCamera == 0 then PlayerY4 = PlayerMapY * 16 end
-		--Screen size (take into account movement)
-		local MinX = PlayerMapX - 7
-		local MaxX = PlayerMapX + 7
-		local MinY = PlayerMapY - 5
-		local MaxY = PlayerMapY + 5
-		NewMapX4Pos = Math.floor(NewMapX4Pos)
-		NewMapY4Pos = Math.floor(NewMapY4Pos)
-		FinalMapX = FinalMapX + NewMapX4Pos - PlayerX4 + 112
-		FinalMapY = FinalMapY + NewMapY4Pos - PlayerY4 + 56
-		
-		--Flip sprite if facing right
-		local FacingTemp = Facing4
-		if FacingTemp == 1 then FacingTemp = 144
-		else FacingTemp = 128
-		end
-		
-	--	ConsoleForText:print("MinX" .. MinX .. " " .. MinY .. " " .. MaxX .. " " .. MaxY .. "Player 2 var: " .. FinalMapX .. " " .. FinalMapY .. " " .. PlayerX .. " " .. PlayerY .. " " .. PlayerXCamera .. " " .. PlayerYCamera .. " " .. NewMapX2Pos .. " " .. NewMapY2Pos)
-	--	ConsoleForText:print("Drawing Player 2. X: " .. FinalMapX .. " Y: " .. FinalMapY .. " Player2X: " .. PlayerX2)
-		if not ((MapX4 > MaxX or MapX4 < MinX) or (MapY4 > MaxY or MapY4 < MinY)) then 
-			
-			if Player4Vis == 1 then
-				emu:write8(PlayerXAddress, FinalMapX)
-				emu:write8(PlayerYAddress, FinalMapY)
-				emu:write8(PlayerFaceAddress, FacingTemp)
-				emu:write8(PlayerSpriteAddress, 128)
-				emu:write16(PlayerExtra1Address, 2656)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 0)
-			--Remove sprite
-			else
-					emu:write8(PlayerXAddress, 160)
-					emu:write8(PlayerYAddress, 48)
-					emu:write8(PlayerFaceAddress, 0)
-					emu:write8(PlayerSpriteAddress, 0)
-					emu:write16(PlayerExtra1Address, 12)
-					emu:write8(PlayerExtra3Address, 0)
-					emu:write8(PlayerExtra4Address, 1)
-			end
-		--Remove sprite
-		else
-				emu:write8(PlayerXAddress, 160)
-				emu:write8(PlayerYAddress, 48)
-				emu:write8(PlayerFaceAddress, 0)
-				emu:write8(PlayerSpriteAddress, 0)
-				emu:write16(PlayerExtra1Address, 12)
-				emu:write8(PlayerExtra3Address, 0)
-				emu:write8(PlayerExtra4Address, 1)
-		end
-end
-
-
-
-
 
 --Unique for server
+
+function AddPlayerToConsole(PlayerNumber)
+	local MultiplayerPlayerNumber = PlayerNumber + 1
+	local ConsoleLine = PlayerNumber + 8
+	if MultiplayerConsoleFlags[MultiplayerPlayerNumber] == 0 and PlayerIDNick[PlayerNumber] ~= "None" then
+		ConsoleForText:moveCursor(0,4)
+		MultiplayerConsoleFlags[1] = MultiplayerConsoleFlags[1] + 1
+		ConsoleForText:print("Players found!                                                  ")
+			
+			
+		MultiplayerConsoleFlags[MultiplayerPlayerNumber] = 1
+		ConsoleForText:moveCursor(0,ConsoleLine)
+		ConsoleForText:print("Player " .. PlayerNumber .. ": " .. PlayerIDNick[PlayerNumber]  .. "                            ")
+		
+	end
+end
+
+function RemovePlayerFromConsole(PlayerNumber)
+	local MultiplayerPlayerNumber = PlayerNumber + 1
+	local ConsoleLine = PlayerNumber + 8
+	if MultiplayerConsoleFlags[MultiplayerPlayerNumber] == 1 then
+		MultiplayerConsoleFlags[1] = MultiplayerConsoleFlags[1] - 1
+		if MultiplayerConsoleFlags[1] <= 0 then
+			MultiplayerConsoleFlags[1] = 0
+			ConsoleForText:moveCursor(0,4)
+			ConsoleForText:print("Searching for player...                                                ")
+		end
+		MultiplayerConsoleFlags[MultiplayerPlayerNumber] = 0
+		ConsoleForText:moveCursor(0,ConsoleLine)
+		ConsoleForText:print("                                                                     ")
+		
+	end
+end
+
+
 
 function GetNewGame()
     ClearAllVar()
@@ -21837,7 +20845,7 @@ function GetNewGame()
 	ConsoleForText:moveCursor(0,0)
 	ConsoleForText:print("A new game has started")
 	ConsoleForText:moveCursor(0,1)
-	FFTimer2 = os.clock()
+	FFTimer2 = os.time()
 	GetGameVersion()
 end
 
@@ -21861,28 +20869,7 @@ function CreateNetwork()
 		ConsoleForText:print("Hosting game. Port forwarding may be required.")
 		ConsoleForText:moveCursor(0,4)
 		ConsoleForText:print("Searching for player...                                                ")
-		ConsoleForText:moveCursor(0,15)
-		ConsoleForText:print("Player 2: Disconnected                     ")
-	else
-		ConsoleForText:moveCursor(0,3)
-		ConsoleForText:print("Hosting game. Port forwarding may be required.")
-		if Player2ID ~= "None" then
-			ConsoleForText:moveCursor(0,4)
-			ConsoleForText:print("Player " .. Player2ID .. " has successfully connected.                                                             ")
-			ConsoleForText:moveCursor(0,15)
-			ConsoleForText:print("Player 2: Connected                      ")
-		else
-			ConsoleForText:moveCursor(0,4)
-			ConsoleForText:print("Searching for player...                                                ")
-			ConsoleForText:moveCursor(0,15)
-			ConsoleForText:print("Player 2: Disconnected                     ")
-		end
 	end
---	if SocketMain.ERRORS == OK then
-	--	ConsoleForText:moveCursor(0,16)
-	--	ConsoleForText:print("Player 3: Disconnected")
-	--	ConsoleForText:moveCursor(0,17)
-	--	ConsoleForText:print("Player 4: Disconnected")
 end
 function SetPokemonData(PokeData)
 	if string.len(EnemyPokemon[1]) < 250 then EnemyPokemon[1] = EnemyPokemon[1] .. PokeData
@@ -21894,6 +20881,8 @@ function SetPokemonData(PokeData)
 	end
 end
 function ReceiveData(Clientell)
+			local RECEIVEDID = 0
+			local RECEIVEDID2 = 0
 			if EnableScript == true then
 			--Check if anybody wants to connect
 				if (Clientell:hasdata()) then
@@ -21901,48 +20890,58 @@ function ReceiveData(Clientell)
 			--	local StringLen = 0
 					
 				if ReadData ~= nil then
+				--	console:log("READDATA: " .. ReadData)
 					--Encryption key
-					ReceiveDataSmall[29] = 0
+					ReceiveDataSmall[17] = "A"
 					ReceiveDataSmall[1] = string.sub(ReadData,1,4)
 					ReceiveDataSmall[2] = string.sub(ReadData,5,8)
-					ReceiveDataSmall[3] = tonumber(string.sub(ReadData,9,9))
-					ReceiveDataSmall[4] = string.sub(ReadData,10,13)
-					ReceiveDataSmall[29] = string.sub(ReadData,64,64)
-					ReceiveDataSmall[29] = tonumber(ReceiveDataSmall[29])
-			--		if ReceiveDataSmall[4] == "BATT" then ConsoleForText:print("Valid package! Contents: " .. ReadData) end
-					if ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "SLNK" then
-					--		ConsoleForText:print("RECEIVED DATA")
-							ReceiveDataSmall[5] = string.sub(ReadData,14,23)
-							ReceiveDataSmall[5] = tonumber(ReceiveDataSmall[5])
-							if ReceiveDataSmall[5] ~= 0 then
-								ReceiveDataSmall[5] = ReceiveDataSmall[5] - 1000000000
-								ReceiveMultiplayerPackets(ReceiveDataSmall[5], Player2)
+					ReceiveDataSmall[3] = tonumber(string.sub(ReadData,9,12))
+					RECEIVEDID = ReceiveDataSmall[3] - 1000
+					ReceiveDataSmall[4] = tonumber(string.sub(ReadData,13,16))
+					RECEIVEDID2 = ReceiveDataSmall[4] - 1000
+					ReceiveDataSmall[5] = string.sub(ReadData,17,20)
+					ReceiveDataSmall[17] = string.sub(ReadData,64,64)
+				--	if ReceiveDataSmall[4] == "BATT" then ConsoleForText:print("Valid package! Contents: " .. ReadData) end
+				--	ConsoleForText:print("Type: " .. ReceiveDataSmall[4])
+				--	if ReceiveDataSmall[5] == "POKE" then console:log("Player " .. ReceiveDataSmall[4] .. " is being sent pokemon by " .. ReceiveDataSmall[3]) end
+					if ReceiveDataSmall[17] == "U" and ReceiveDataSmall[4] > PlayerID2 then
+						if PlayerIDNick[RECEIVEDID2] ~= "None" then
+							Players[RECEIVEDID2]:send(ReadData)
+						end
+					elseif ReceiveDataSmall[17] == "U" and ReceiveDataSmall[5] == "SLNK" then
+							timeout[RECEIVEDID] = timeoutmax
+							ReceiveDataSmall[6] = string.sub(ReadData,21,30)
+							ReceiveDataSmall[6] = tonumber(ReceiveDataSmall[6])
+							if ReceiveDataSmall[6] ~= 0 then
+								ReceiveDataSmall[6] = ReceiveDataSmall[6] - 1000000000
+								ReceiveMultiplayerPackets(ReceiveDataSmall[6])
 							end
-					elseif ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "POKE" then
-							if ReceiveDataSmall[3] == 2 then timeout1 = timeoutmax end
-							local PokeTemp2 = string.sub(ReadData,14,63)
+					elseif ReceiveDataSmall[17] == "U" and ReceiveDataSmall[5] == "POKE" then
+							timeout[RECEIVEDID] = timeoutmax
+							local PokeTemp2 = string.sub(ReadData,21,45)
 							SetPokemonData(PokeTemp2)
-					elseif ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "TRAD" then
-						EnemyTradeVars[1] = string.sub(ReadData,14,14)
-						EnemyTradeVars[2] = string.sub(ReadData,15,15)
-						EnemyTradeVars[3] = string.sub(ReadData,16,16)
-						EnemyTradeVars[4] = string.sub(ReadData,17,17)
+							
+					elseif ReceiveDataSmall[17] == "U" and ReceiveDataSmall[5] == "TRAD" then
+						timeout[RECEIVEDID] = timeoutmax
+						EnemyTradeVars[1] = string.sub(ReadData,21,21)
+						EnemyTradeVars[2] = string.sub(ReadData,22,22)
+						EnemyTradeVars[3] = string.sub(ReadData,23,23)
 						EnemyTradeVars[5] = string.sub(ReadData,24,63)
 						EnemyTradeVars[1] = tonumber(EnemyTradeVars[1])
 						EnemyTradeVars[2] = tonumber(EnemyTradeVars[2])
 						EnemyTradeVars[3] = tonumber(EnemyTradeVars[3])
-						EnemyTradeVars[4] = tonumber(EnemyTradeVars[4])
-					elseif ReceiveDataSmall[3] == ReceiveDataSmall[29] and ReceiveDataSmall[4] == "BATT" then
-						EnemyBattleVars[1] = string.sub(ReadData,14,14)
-						EnemyBattleVars[2] = string.sub(ReadData,15,15)
-						EnemyBattleVars[3] = string.sub(ReadData,16,16)
-						EnemyBattleVars[4] = string.sub(ReadData,17,17)
-						EnemyBattleVars[5] = string.sub(ReadData,18,18)
-						EnemyBattleVars[6] = string.sub(ReadData,19,19)
-						EnemyBattleVars[7] = string.sub(ReadData,20,20)
-						EnemyBattleVars[8] = string.sub(ReadData,21,21)
-						EnemyBattleVars[9] = string.sub(ReadData,22,22)
-						EnemyBattleVars[10] = string.sub(ReadData,23,23)
+					elseif ReceiveDataSmall[17] == "U" and ReceiveDataSmall[5] == "BATT" then
+						timeout[RECEIVEDID] = timeoutmax
+						EnemyBattleVars[1] = string.sub(ReadData,21,21)
+						EnemyBattleVars[2] = string.sub(ReadData,22,22)
+						EnemyBattleVars[3] = string.sub(ReadData,23,23)
+						EnemyBattleVars[4] = string.sub(ReadData,24,24)
+						EnemyBattleVars[5] = string.sub(ReadData,25,25)
+						EnemyBattleVars[6] = string.sub(ReadData,26,26)
+						EnemyBattleVars[7] = string.sub(ReadData,27,27)
+						EnemyBattleVars[8] = string.sub(ReadData,28,28)
+						EnemyBattleVars[9] = string.sub(ReadData,29,29)
+						EnemyBattleVars[10] = string.sub(ReadData,30,30)
 						EnemyBattleVars[1] = tonumber(EnemyBattleVars[1])
 						EnemyBattleVars[2] = tonumber(EnemyBattleVars[2])
 						EnemyBattleVars[3] = tonumber(EnemyBattleVars[3])
@@ -21954,63 +20953,69 @@ function ReceiveData(Clientell)
 						EnemyBattleVars[9] = tonumber(EnemyBattleVars[9])
 						EnemyBattleVars[10] = tonumber(EnemyBattleVars[10])
 					
-					elseif ReceiveDataSmall[3] == ReceiveDataSmall[29] then
-								--Decryption for packet
-							--Type of packet
-							ReceiveDataSmall[4] = string.sub(ReadData,10,13)
-							--Packet Temp 1
-							ReceiveDataSmall[5] = string.sub(ReadData,14,14)
-							--X Player 1
-							ReceiveDataSmall[6] = string.sub(ReadData,15,16)
-							--Y Player 1
-							ReceiveDataSmall[7] = string.sub(ReadData,17,18)
-							--Player 1 Vis
-							ReceiveDataSmall[8] = string.sub(ReadData,19,19)
+					elseif ReceiveDataSmall[17] == "U" then
+							--Decryption for packet
+							--Extra bytes connected to sent request
+							ReceiveDataSmall[6] = string.sub(ReadData,21,24)
+							ReceiveDataSmall[6] = tonumber(ReceiveDataSmall[6])
+							--X
+							ReceiveDataSmall[7] = string.sub(ReadData,25,28)
+							ReceiveDataSmall[7] = tonumber(ReceiveDataSmall[7])
+							--Y
+							ReceiveDataSmall[8] = string.sub(ReadData,29,32)
 							ReceiveDataSmall[8] = tonumber(ReceiveDataSmall[8])
-							--Player 2
-							ReceiveDataSmall[9] = string.sub(ReadData,20,21)
-							ReceiveDataSmall[10] = string.sub(ReadData,22,23)
-							ReceiveDataSmall[11] = string.sub(ReadData,24,24)
-							--Player 3
-							ReceiveDataSmall[12] = string.sub(ReadData,25,26)
-							ReceiveDataSmall[13] = string.sub(ReadData,27,28)
-							ReceiveDataSmall[14] = string.sub(ReadData,29,29)
-							--Player 4
-							ReceiveDataSmall[15] = string.sub(ReadData,30,31)
-							ReceiveDataSmall[16] = string.sub(ReadData,32,33)
-							ReceiveDataSmall[17] = string.sub(ReadData,34,34)
-							--Extra 1 and 2 for players 1-4
-							ReceiveDataSmall[18] = string.sub(ReadData,35,36)
-							ReceiveDataSmall[19] = string.sub(ReadData,37,38)
-							ReceiveDataSmall[20] = string.sub(ReadData,39, 40)
-							ReceiveDataSmall[21] = string.sub(ReadData,41,42)
-							ReceiveDataSmall[22] = string.sub(ReadData,43,44)
-							ReceiveDataSmall[23] = string.sub(ReadData,45,46)
-							ReceiveDataSmall[24] = string.sub(ReadData,47,48)
-							ReceiveDataSmall[25] = string.sub(ReadData,49,50)
-							--Map ID
-							ReceiveDataSmall[26] = string.sub(ReadData,50,56)
-							--Prev Map ID
-							ReceiveDataSmall[27] = string.sub(ReadData,57,62)
-							--ConnectionType
-							ReceiveDataSmall[28] = string.sub(ReadData,63,63)
+							--Facing (used during comparing for extra1)
+							ReceiveDataSmall[9] = string.sub(ReadData,33,35)
+							ReceiveDataSmall[9] = tonumber(ReceiveDataSmall[9])
+							--Extra 1
+							ReceiveDataSmall[10] = string.sub(ReadData,36,38)
+							ReceiveDataSmall[10] = tonumber(ReceiveDataSmall[10])
+							ReceiveDataSmall[10] = ReceiveDataSmall[10] - 100
+							--Extra 2
+							ReceiveDataSmall[11] = string.sub(ReadData,39,39)
+							ReceiveDataSmall[11] = tonumber(ReceiveDataSmall[11])
+							--Extra 3
+							ReceiveDataSmall[12] = string.sub(ReadData,40,40)
+							ReceiveDataSmall[12] = tonumber(ReceiveDataSmall[12])
+							--Extra 4
+							ReceiveDataSmall[13] = string.sub(ReadData,41,41)
+							ReceiveDataSmall[13] = tonumber(ReceiveDataSmall[13])
+							--MapID
+							ReceiveDataSmall[14] = string.sub(ReadData,42,47)
+							ReceiveDataSmall[14] = tonumber(ReceiveDataSmall[14])
+							--PreviousMapID
+							ReceiveDataSmall[15] = string.sub(ReadData,48,53)
+							ReceiveDataSmall[15] = tonumber(ReceiveDataSmall[15])
+							--MapConnectionType
+							ReceiveDataSmall[16] = string.sub(ReadData,54,54)
+							ReceiveDataSmall[16] = tonumber(ReceiveDataSmall[16])
+							--StartX
+							ReceiveDataSmall[18] = string.sub(ReadData,55,58)
+							ReceiveDataSmall[18] = tonumber(ReceiveDataSmall[18])
+							--StartY
+							ReceiveDataSmall[19] = string.sub(ReadData,59,62)
+							ReceiveDataSmall[19] = tonumber(ReceiveDataSmall[19])
+							--63 is a filler byte.
 						
 						--Set connection type to var
-							ReturnConnectionType = ReceiveDataSmall[4]
+							ReturnConnectionType = ReceiveDataSmall[5]
+							timeout[RECEIVEDID] = timeoutmax
 						
 					--	ConsoleForText:print("Valid package! Contents: " .. ReadData)
-				--	if ReceiveDataSmall[4] == "DTRA" then ConsoleForText:print("Locktype: " .. LockFromScript) end
+				--	if ReceiveDataSmall[5] == "DTRA" then ConsoleForText:print("Locktype: " .. LockFromScript) end
 						
-						if ReceiveDataSmall[4] == "RPOK" and ReceiveDataSmall[3] == 2 then
-							CreatePackettSpecial("POKE",Player2)
+						if ReceiveDataSmall[5] == "RPOK" and ReceiveDataSmall[3] ~= PlayerID2 then
+							CreatePackettSpecial("POKE",Players[RECEIVEDID])
 						end
 						
-						--If player 2 requests for a battle
-						if ReceiveDataSmall[4] == "RBAT" and ReceiveDataSmall[3] == 20 then
+						--If a player requests for a battle
+						if ReceiveDataSmall[5] == "RBAT" and ReceiveDataSmall[3] ~= PlayerID2 then
 							local TooBusyByte = emu:read8(50335644)
 							if (TooBusyByte ~= 0 or LockFromScript ~= 0) then
-								SendData("TBUS", Player2)
+								SendData("TBUS", Players[RECEIVEDID])
 							else
+								PlayerTalkingID = ReceiveDataSmall[3] - 1000
+								PlayerTalkingID2 = ReceiveDataSmall[3]
 								OtherPlayerHasCancelled = 0
 								LockFromScript = 12
 								Loadscript(10)
@@ -22018,19 +21023,21 @@ function ReceiveData(Clientell)
 						end
 						
 						--If player 2 requests for a trade
-						if ReceiveDataSmall[4] == "RTRA" and ReceiveDataSmall[3] == 2 then
+						if ReceiveDataSmall[5] == "RTRA" and ReceiveDataSmall[3] ~= PlayerID2 then
 							local TooBusyByte = emu:read8(50335644)
 							if (TooBusyByte ~= 0 or LockFromScript ~= 0) then
-								SendData("TBUS", Player2)
+								SendData("TBUS", Players[RECEIVEDID])
 							else
+								PlayerTalkingID = ReceiveDataSmall[3] - 1000
+								PlayerTalkingID2 = ReceiveDataSmall[3]
 								OtherPlayerHasCancelled = 0
 								LockFromScript = 13
 								Loadscript(6)
 							end
 						end
 						
-						--If player 2 is too busy to battle
-						if ReceiveDataSmall[4] == "TBUS" and ReceiveDataSmall[3] == 2 and LockFromScript == 4 then
+						--The player is too busy to battle
+						if ReceiveDataSmall[5] == "TBUS" and ReceiveDataSmall[3] == PlayerTalkingID2 and LockFromScript == 4 then
 						--	ConsoleForText:print("Other player is too busy to battle.")
 							if Var8000[2] ~= 0 then
 								LockFromScript = 7
@@ -22038,8 +21045,8 @@ function ReceiveData(Clientell)
 							else
 								TextSpeedWait = 5
 							end
-						--If player 2 is too busy to trade
-						elseif ReceiveDataSmall[4] == "TBUS" and ReceiveDataSmall[3] == 2 and LockFromScript == 5 then
+						--The player is too busy to trade
+						elseif ReceiveDataSmall[5] == "TBUS" and ReceiveDataSmall[3] == PlayerTalkingID2 and LockFromScript == 5 then
 						--	ConsoleForText:print("Other player is too busy to trade.")
 							if Var8000[2] ~= 0 then
 								LockFromScript = 7
@@ -22049,20 +21056,20 @@ function ReceiveData(Clientell)
 							end
 						end
 						
-						--If player 2 cancels battle
-						if ReceiveDataSmall[4] == "CBAT" and ReceiveDataSmall[3] == 2 then
+						--If the other player cancels battle
+						if ReceiveDataSmall[5] == "CBAT" and ReceiveDataSmall[3] == PlayerTalkingID2 then
 					--		ConsoleForText:print("Other player has canceled battle.")
 							OtherPlayerHasCancelled = 1
 						end
-						--If player 2 cancels trade
-						if ReceiveDataSmall[4] == "CTRA" and ReceiveDataSmall[3] == 2 then
+						--If the other player cancels trade
+						if ReceiveDataSmall[5] == "CTRA" and ReceiveDataSmall[3] == PlayerTalkingID2 then
 					--		ConsoleForText:print("Other player has canceled trade.")
 							OtherPlayerHasCancelled = 2
 						end
 						
-						--If player 2 accepts your battle request
-						if ReceiveDataSmall[4] == "SBAT" and ReceiveDataSmall[3] == 2 and LockFromScript == 4 then
-							SendData("RPOK", Player2)
+						--If the other player accepts your battle request
+						if ReceiveDataSmall[5] == "SBAT" and ReceiveDataSmall[3] == PlayerTalkingID2 and LockFromScript == 4 then
+							SendData("RPOK", Players[RECEIVEDID])
 							if Var8000[2] ~= 0 then
 								LockFromScript = 8
 								Loadscript(13)
@@ -22070,19 +21077,18 @@ function ReceiveData(Clientell)
 								TextSpeedWait = 1
 							end
 						end
-						--If player 2 accepts your trade request
-						if ReceiveDataSmall[4] == "STRA" and ReceiveDataSmall[3] == 2 and LockFromScript == 5 then
-							SendData("RPOK", Player2)
+						--If the other player accepts your trade request
+						if ReceiveDataSmall[5] == "STRA" and ReceiveDataSmall[3] == PlayerTalkingID2 and LockFromScript == 5 then
+							SendData("RPOK", Players[RECEIVEDID])
 							if Var8000[2] ~= 0 then
 								LockFromScript = 9
-								Loadscript(14)
 							else
 								TextSpeedWait = 2
 							end
 						end
 						
-						--If player 2 denies your battle request
-						if ReceiveDataSmall[4] == "DBAT" and ReceiveDataSmall[3] == 2 and LockFromScript == 4 then
+						--If the other player denies your battle request
+						if ReceiveDataSmall[5] == "DBAT" and ReceiveDataSmall[3] == PlayerTalkingID2 and LockFromScript == 4 then
 							if Var8000[2] ~= 0 then
 								LockFromScript = 7
 								Loadscript(11)
@@ -22090,8 +21096,9 @@ function ReceiveData(Clientell)
 								TextSpeedWait = 3
 							end
 						end
-						--If player 2 denies your trade request
-						if ReceiveDataSmall[4] == "DTRA" and ReceiveDataSmall[3] == 2 and LockFromScript == 5 then
+						--If the other player denies your trade request
+						if ReceiveDataSmall[5] == "DTRA" then console:log("RD: " .. ReceiveDataSmall[3] .. " PTID: " .. PlayerTalkingID .. " LFS: " .. LockFromScript) end
+						if ReceiveDataSmall[5] == "DTRA" and ReceiveDataSmall[3] == PlayerTalkingID2 and LockFromScript == 5 then
 							if Var8000[2] ~= 0 then
 								LockFromScript = 7
 								Loadscript(7)
@@ -22100,58 +21107,39 @@ function ReceiveData(Clientell)
 							end
 						end
 						
-						--If player 2 refuses trade offer
-						if ReceiveDataSmall[4] == "ROFF" and ReceiveDataSmall[3] == 2 and LockFromScript == 9 then
+						--If the other player refuses trade offer
+						if ReceiveDataSmall[5] == "ROFF" and ReceiveDataSmall[3] == PlayerTalkingID2 and LockFromScript == 9 then
 							OtherPlayerHasCancelled = 3
 						end
 						
 						
-						--GPOS
-						if ReceiveDataSmall[4] == "GPOS" then
-				--			if ReceiveDataSmall[3] == 1 then
-				--				MapX = tonumber(ReceiveDataSmall[6])
-				--				MapY = tonumber(ReceiveDataSmall[7])
-				--				Facing = tonumber(ReceiveDataSmall[8])
-				--				PlayerExtra1 = tonumber(Player1ExtraTemp)
-				--				Player1Vis = tonumber(Player1VisibleTemp)
-				--			end
-							if Player2ID ~= "None" and ReceiveDataSmall[3] == 2 then
-								timeout1 = timeoutmax
-								ReceiveDataSmall[26] = tonumber(ReceiveDataSmall[26])
-								Player2ID = ReceiveDataSmall[2]
-								if MapID2 ~= ReceiveDataSmall[26] then
-									NewMap2 = 1
-									MapStartX2 = tonumber(ReceiveDataSmall[9])
-									MapStartY2 = tonumber(ReceiveDataSmall[10])
-									if MapStartX2 > 9 then MapStartX2 = MapStartX2 - 10 end
-									if MapStartY2 > 9 then MapStartY2 = MapStartY2 - 10 end
-									MapID2 = ReceiveDataSmall[26]
-						--			ConsoleForText:print("MapIDP2: " .. MapID2 .. " MapIDP2Prev: " .. ReceiveDataSmall[27])
+						--SPOS
+						if ReceiveDataSmall[5] == "SPOS" and ReceiveDataSmall[3] ~= PlayerID2 then
+								PlayerIDNick[RECEIVEDID] = ReceiveDataSmall[2]
+								if CurrentMapID[RECEIVEDID] ~= ReceiveDataSmall[14] then
+									PlayerAnimationFrame[RECEIVEDID] = 0
+									PlayerAnimationFrame2[RECEIVEDID] = 0
+									PlayerAnimationFrameMax[RECEIVEDID] = 0
+									CurrentMapID[RECEIVEDID] = ReceiveDataSmall[14]
+									PreviousMapID[RECEIVEDID] = ReceiveDataSmall[15]
+									MapEntranceType[RECEIVEDID] = ReceiveDataSmall[16]
+									MapChange[RECEIVEDID] = 1
+									PreviousX[RECEIVEDID] = CurrentX[RECEIVEDID]
+									PreviousY[RECEIVEDID] = CurrentY[RECEIVEDID]
+									CurrentX[RECEIVEDID] = ReceiveDataSmall[7]
+									CurrentY[RECEIVEDID] = ReceiveDataSmall[8]
 								end
-								if MapID2 == PlayerMapID then
-									MapX2Prev = tonumber(ReceiveDataSmall[9])
-									MapY2Prev = tonumber(ReceiveDataSmall[10])
-									if MapX2Prev > 9 then MapX2Prev = MapX2Prev - 10 end
-									if MapY2Prev > 9 then MapY2Prev = MapY2Prev - 10 end
-								end
-								NewMapX2 = tonumber(ReceiveDataSmall[9])
-								NewMapY2 = tonumber(ReceiveDataSmall[10])
-						--		ConsoleForText:print("MapX: " .. NewMapX2 .. " MapY: " .. NewMapY2)
-						--		Facing2 = tonumber(ReceiveDataSmall[11])
-								Player2Extra1 = tonumber(ReceiveDataSmall[20])
-								Player2Extra2 = tonumber(ReceiveDataSmall[21])
-					--			ConsoleForText:print("Player2Extra2: " .. ReceiveDataSmall[21])
-								FixPositionPlayer2()
-								NewMapConnect2Prev = tonumber(ReceiveDataSmall[27])
-								NewMapConnect2 = tonumber(ReceiveDataSmall[28])
-							end
-							if Player3ID ~= "None" and ReceiveDataSmall[3] == 3 then
-							end
-							if Player4ID ~= "None" and ReceiveDataSmall[3] == 4 then
-							end
+								FutureX[RECEIVEDID] = ReceiveDataSmall[7]
+								FutureY[RECEIVEDID] = ReceiveDataSmall[8]
+								PlayerExtra1[RECEIVEDID] = ReceiveDataSmall[10]
+								PlayerExtra2[RECEIVEDID] = ReceiveDataSmall[11]
+								PlayerExtra3[RECEIVEDID] = ReceiveDataSmall[12]
+								PlayerExtra4[RECEIVEDID] = ReceiveDataSmall[13]
+								StartX[RECEIVEDID] = ReceiveDataSmall[18]
+								StartY[RECEIVEDID] = ReceiveDataSmall[19]
 						end
 						--TIME
-			--			if ReceiveDataSmall[4] == "TIME" then
+			--			if ReceiveDataSmall[5] == "TIME" then
 			--				if PlayerTempVar1 == 2 then
 			--					timeout1 = 5
 			--				elseif PlayerTempVar1 == 3 then
@@ -22163,56 +21151,55 @@ function ReceiveData(Clientell)
 						
 						
 						--If nickname doesn't already exist on server and request to join
-						if ReceiveDataSmall[4] == "JOIN" then
-						
-						--	if (ReceiveDataSmall[2] ~= None) then if (ReceiveDataSmall[2] ~= Player2ID and ReceiveDataSmall[2] ~= Player3ID  and ReceiveDataSmall[2] ~= Player4ID) then
+						if ReceiveDataSmall[5] == "JOIN" then
+						--	if (ReceiveDataSmall[2] ~= None) then if (ReceiveDataSmall[2] ~= PlayerIDNick[2] and ReceiveDataSmall[2] ~= Player3ID  and ReceiveDataSmall[2] ~= Player4ID) then
 							if (ReceiveDataSmall[2] ~= "None") then
-								if (ReceiveDataSmall[2] ~= Player2ID) then
-									ConsoleForText:moveCursor(0,4)
-									ConsoleForText:print("Player " .. ReceiveDataSmall[2] .. " has successfully connected.                                                             ")
-									if Connected == 0 then Connected = 1 end
-									if Player2ID == "None" then
-											ConsoleForText:moveCursor(0,15)
-											ConsoleForText:print("Player 2: Connected                      ")
-											Player2ID = ReceiveDataSmall[2]
-											console:log("Player " .. Player2ID .. " has successfully connected")
-											Player2 = Clientell
-											Player2Vis = 1
-											MapX2Prev = tonumber(ReceiveDataSmall[6])
-											MapY2Prev = tonumber(ReceiveDataSmall[7])
-											MapX2 = tonumber(ReceiveDataSmall[6])
-											MapY2 = tonumber(ReceiveDataSmall[7])
-											NewMapX2 = tonumber(ReceiveDataSmall[6])
-											NewMapY2 = tonumber(ReceiveDataSmall[7])
-											SendData("NewPlayer2", Player2)
-											timeout1 = timeoutmax
-							--4 Player Support in the future, too unstable now and need to add many more things first
-							--		elseif Player3ID == "None" then
-							--				Player3ID = ReceiveDataSmall[2]
-							--				Player3 = Clientell
-							--				Player3Vis = 1
-							--				SendData("NewPlayer3", Player3)
-							--				timeout2 = timeoutmax
-							--		elseif Player4ID == "None" then
-							--				Player4ID = ReceiveDataSmall[2]
-							--				Player4 = Clientell
-							--				Player4Vis = 1
-							--				SendData("NewPlayer4", Player4)
-							--				timeout3 = timeoutmax
-									else
-										ConsoleForText:moveCursor(0,4)
-										ConsoleForText:print("A player is unable to join due to capacity limit.                ")
-									--	SendData("DENY", Clientell)
+								local n = 1
+								for i = 1, MaxPlayers do
+									if n > 0 then
+										if PlayerID ~= i and PlayerIDNick[i] == "None" then
+											for i = 1, MaxPlayers do
+												if (ReceiveDataSmall[2] == PlayerIDNick[i]) then
+													ConsoleForText:moveCursor(0,4)
+													ConsoleForText:print("A player that is already in the game is trying to join!                ")
+													n = 0
+												end
+											end
+											if n > 0 then
+												if Connected == 0 then Connected = 1 end
+												PlayerIDNick[i] = ReceiveDataSmall[2]
+												console:log("Player " .. PlayerIDNick[i] .. " has successfully connected")
+												AddPlayerToConsole(i)
+												Players[i] = Clientell
+											--	Players[i]:add("received",ReceiveData(Players[i]))
+												PlayerVis[i] = 1
+												PlayerAnimationFrame[i] = 0
+												PlayerAnimationFrame2[i] = 0
+												PlayerAnimationFrameMax[i] = 0
+												CurrentX[i] = ReceiveDataSmall[7]
+												CurrentY[i] = ReceiveDataSmall[8]
+												MapChange[i] = 0
+												MapID[i] = ReceiveDataSmall[14]
+												PrevMapID[i] = ReceiveDataSmall[15]
+												local NewPlayerID = i + 1000
+												SendData("NewPlayer", Players[i], NewPlayerID)
+												timeout[i] = timeoutmax
+												n = 0
+											end
+										else
+											if n > 0 then
+												n = n + 1
+											end
+										end
+										if n >= 1 and i == MaxPlayers then	
+											ConsoleForText:moveCursor(0,4)
+											ConsoleForText:print("A player is unable to join due to capacity limit.                ")
+										--	console:log("Player " .. ReceiveDataSmall[2] .. " was unable to connect")
+										end
 									end
-								else
-									ConsoleForText:moveCursor(0,4)
-									ConsoleForText:print("A player that is already in the game is trying to join!                ")
 								end
-							
 							end
-				--	else
-				--		ConsoleForText:print("INVALID PACKAGE: " .. ReadData)
-					end
+						end
 				end
 			end
 		end
@@ -22221,176 +21208,81 @@ end
 
 function CreatePackettSpecial(RequestTemp, Socket2, OptionalData)
 	if RequestTemp == "POKE" then
+		PlayerReceiveID = PlayerTalkingID2
 		GetPokemonTeam()
 		local PokeTemp
-	--	local Filler = "FFFFFFFFFFFFFFFFFFFF"
+		local StartNum = 0
+		local StartNum2 = 0
+		local Filler = "FFFFFFFFFFFFFFFFFF"
 		for j = 1, 6 do
-			PokeTemp = string.sub(Pokemon[j],1,50)
-			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
+			for i = 1, 10 do
+			StartNum = ((i - 1) * 25) + 1
+			StartNum2 = StartNum + 24
+			PokeTemp = string.sub(Pokemon[j],StartNum,StartNum2)
+			Packett = GameID .. Nickname .. PlayerID2 .. PlayerReceiveID .. RequestTemp .. PokeTemp .. Filler .. "U"
 			Socket2:send(Packett)
-		--	ConsoleForText:print("Packett: " .. Packett)
-			PokeTemp = string.sub(Pokemon[j],51,100)
-			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
-			Socket2:send(Packett)
-			PokeTemp = string.sub(Pokemon[j],101,150)
-			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
-			Socket2:send(Packett)
-			PokeTemp = string.sub(Pokemon[j],151,200)
-			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
-			Socket2:send(Packett)
-			PokeTemp = string.sub(Pokemon[j],201,250)
-			Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. PokeTemp .. PlayerID
-			Socket2:send(Packett)
-		--		ConsoleForText:print("Packett: " .. Packett)
+			end
 		end
 	elseif RequestTemp == "TRAD" then
-		local FillerSend = "100000"
-		Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. TradeVars[1] .. TradeVars[2] .. TradeVars[3] .. TradeVars[4] .. FillerSend .. TradeVars[5] .. PlayerID
+		PlayerReceiveID = PlayerTalkingID2
+		Packett = GameID .. Nickname .. PlayerID2 .. PlayerReceiveID .. RequestTemp .. TradeVars[1] .. TradeVars[2] .. TradeVars[3] .. TradeVars[5] .. "U"
+		--4 + 4 + 4 + 4 + 4 + 3 + 40 + 1
 		Socket2:send(Packett)
 	elseif RequestTemp == "BATT" then
-		local FillerSend = "1000000000000000000000000000000000000000"
-		Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. BattleVars[1] .. BattleVars[2] .. BattleVars[3] .. BattleVars[4] .. BattleVars[5] .. BattleVars[6] .. BattleVars[7] .. BattleVars[8] .. BattleVars[9] .. BattleVars[10] .. FillerSend .. PlayerID
+		PlayerReceiveID = PlayerTalkingID2
+		local FillerSend = "100000000000000000000000000000000"
+		Packett = GameID .. Nickname .. PlayerID2 .. PlayerReceiveID .. RequestTemp .. BattleVars[1] .. BattleVars[2] .. BattleVars[3] .. BattleVars[4] .. BattleVars[5] .. BattleVars[6] .. BattleVars[7] .. BattleVars[8] .. BattleVars[9] .. BattleVars[10] .. FillerSend .. "U"
 	--	ConsoleForText:print("Packett: " .. Packett)
 		Socket2:send(Packett)
 	elseif RequestTemp == "SLNK" then
+		PlayerReceiveID = PlayerTalkingID2
 		OptionalData = OptionalData or 0
-		local Filler = "1000000000000000000000000000000000000000"
+		local Filler = "100000000000000000000000000000000"
 		local SizeAct = OptionalData + 1000000000
  --		SizeAct = tostring(SizeAct)
 --		SizeAct = string.format("%.0f",SizeAct)
-		Packett = GameID .. Nickname .. PlayerID .. RequestTemp .. SizeAct .. Filler .. PlayerID
+		Packett = GameID .. Nickname .. PlayerID2 .. PlayerReceiveID .. RequestTemp .. SizeAct .. Filler .. "U"
 --		ConsoleForText:print("Packett: " .. Packett)
 		Socket2:send(Packett)
 	end
 end
 --Send Data to clients
 function CreatePackett(RequestTemp, PackettTemp)
-	PlayerExtra1 = PlayerExtra1 + 10
-	PlayerExtra2 = PlayerExtra2 + 10
-	Player2Extra1 = Player2Extra1 + 10
-	Player2Extra2 = Player2Extra2 + 10
-	Player3Extra1 = Player3Extra1 + 10
-	Player3Extra2 = Player3Extra2 + 10
-	Player4Extra1 = Player4Extra1 + 10
-	Player4Extra2 = Player4Extra2 + 10
-	if MapX < 90 then MapX = MapX + 10 end
-	if MapX2 < 90 then MapX2 = MapX2 + 10 end
-	if MapX3 < 90 then MapX3 = MapX3 + 10 end
-	if MapX4 < 90 then MapX4 = MapX4 + 10 end
-	if MapY < 90 then MapY = MapY + 10 end
-	if MapY2 < 90 then MapY2 = MapY2 + 10 end
-	if MapY3 < 90 then MapY3 = MapY3 + 10 end
-	if MapY4 < 90 then MapY4 = MapY4 + 10 end
-	Facing = 5
-	Facing2 = 5
-	Facing3 = 5
-	Facing4 = 5
-	local Player1VisTemp = 0
-	local Player2VisTemp = 0
-	local Player3VisTemp = 0
-	local Player4VisTemp = 0
-	if RequestTemp == "SPO2" then
-		Player1VisTemp = string.sub(PackettTemp,1,1)
-		Player2VisTemp = string.sub(PackettTemp,2,2)
-		Player3VisTemp = string.sub(PackettTemp,3,3)
-		Player4VisTemp = string.sub(PackettTemp,4,4)
-		PackettTemp = "100"
-		RequestTemp = "SPOS"
-	--	ConsoleForText:print("SPO2 RECEIVED! Sending to " .. TempVar1 .. " Map 1: " .. MapID .. " Map 2: " .. MapID2 .. " Vars: " .. PackettTemp )
-	end
-	Packett =  GameID .. Nickname .. PlayerID .. RequestTemp .. PackettTemp .. NewMapConnect .. MapX .. MapY .. Facing .. Player1VisTemp .. MapX2 .. MapY2 .. Facing2 .. Player2VisTemp .. MapX3 .. MapY3 .. Facing3 .. Player3VisTemp .. MapX4 .. MapY4 .. Facing4 .. Player4VisTemp .. PlayerExtra1 .. PlayerExtra2 .. Player2Extra1 .. Player2Extra2 .. Player3Extra1 .. Player3Extra2 .. Player4Extra1 .. Player4Extra2 .. PlayerMapID .. PlayerID
-	FixAllPositions()
+	local FillerStuff = "F"
+	Packett = GameID .. Nickname .. PlayerID2 .. PlayerReceiveID .. RequestTemp .. PackettTemp .. CurrentX[PlayerID] .. CurrentY[PlayerID] .. Facing2[PlayerID] .. PlayerExtra1[PlayerID] .. PlayerExtra2[PlayerID] .. PlayerExtra3[PlayerID] .. PlayerExtra4[PlayerID] .. PlayerMapID .. PlayerMapIDPrev .. PlayerMapEntranceType .. StartX[PlayerID] .. StartY[PlayerID] .. FillerStuff .. "U"
 end
 
-function SendData(DataType, Socket)
+function SendData(DataType, Socket, ExtraData)
 	--If you have made a server
-	if (DataType == "NewPlayer2") then
+	if (DataType == "NewPlayer") then
+		PlayerReceiveID = 1000
 	--	ConsoleForText:print("Request accepted!")
-		CreatePackett("STRT", "200")
-		Socket:send(Packett)
-	elseif (DataType == "NewPlayer3") then
-	--	ConsoleForText:print("Request accepted!")
-		CreatePackett("STRT", "300")
-		Socket:send(Packett)
-	elseif (DataType == "NewPlayer4") then
-	--	ConsoleForText:print("Request accepted!")
-		CreatePackett("STRT", "400")
+		CreatePackett("STRT", ExtraData)
 		Socket:send(Packett)
 	elseif (DataType == "DENY") then
-		CreatePackett("DENY", "100")
+		CreatePackett("DENY", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "KICK") then
-		CreatePackett("KICK", "100")
+		CreatePackett("KICK", "1000")
 		Socket:send(Packett)
-	elseif (DataType == "GPos") then
-		CreatePackett("GPOS", "100")
+	elseif (DataType == "GPOS") then
+		CreatePackett("GPOS", "1000")
 		Socket:send(Packett)
-	elseif (DataType == "SPos") then
-		local Player1Visibility = 0
-		local Player2Visibility = 0
-		local Player3Visibility = 0
-		local Player4Visibility = 0
-	--Hide players that aren't on the same map
-		MapID2 = tonumber(MapID2)
-		MapID3 = tonumber(MapID3)
-		MapID4 = tonumber(MapID4)
-		if TempVar1 == "Player 2" then
-			if MapID2 ~= 0 then
-				if MapID2 == PlayerMapID then Player1Visibility = 1 end
-				if MapID2 == MapID2 then Player2Visibility = 1 end
-				if MapID2 == MapID3 then Player3Visibility = 1 end
-				if MapID2 == MapID4 then Player4Visibility = 1 end
-			else
-				Player1Visibility = 0
-				Player2Visibility = 0
-				Player3Visibility = 0
-				Player4Visibility = 0
-			end
-			Player1Visibility = Player1Visibility .. Player2Visibility .. Player3Visibility .. Player4Visibility
-			CreatePackett("SPO2", Player1Visibility )
-		elseif TempVar1 == "Player 3" then
-			if MapID3 ~= 0 then
-				if MapID3 == PlayerMapID then Player1Visibility = 1 end
-				if MapID3 == MapID2 then Player2Visibility = 1 end
-				if MapID3 == MapID3 then Player3Visibility = 1 end
-				if MapID3 == MapID4 then Player4Visibility = 1 end
-				else
-				Player1Visibility = 0
-				Player2Visibility = 0
-				Player3Visibility = 0
-				Player4Visibility = 0
-			end
-			Player1Visibility = Player1Visibility .. Player2Visibility .. Player3Visibility .. Player4Visibility
-			CreatePackett("SPO2", Player1Visibility )
-		elseif TempVar1 == "Player 4" then
-			if MapID4 ~= 0 then
-				if MapID4 == PlayerMapID then Player1Visibility = 1 end
-				if MapID4 == MapID2 then Player2Visibility = 1 end
-				if MapID4 == MapID3 then Player3Visibility = 1 end
-				if MapID4 == MapID4 then Player4Visibility = 1 end
-				else
-				Player1Visibility = 0
-				Player2Visibility = 0
-				Player3Visibility = 0
-				Player4Visibility = 0
-			end
-			Player1Visibility = Player1Visibility .. Player2Visibility .. Player3Visibility .. Player4Visibility
-			CreatePackett("SPO2", Player1Visibility )
-		else
-			CreatePackett("SPOS", "100")
-		end
-		--Dummy packett
-	--	CreatePackett("DMMY", "1000")
+	elseif (DataType == "SPOS") then
+		CreatePackett("SPOS", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "Request") then
-		CreatePackett("JOIN", "100")
+		PlayerReceiveID = 1000
+		CreatePackett("JOIN", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "Hide") then
-		CreatePackett("HIDE", "100")
+		CreatePackett("HIDE", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "POKE") then
+		PlayerReceiveID = PlayerTalkingID2
 		CreatePackettSpecial("POKE",Socket)
 	elseif (DataType == "RPOK") then
+		PlayerReceiveID = PlayerTalkingID2
 		local whiletempmax = 100000
 		EnemyPokemon[1] = ""
 		EnemyPokemon[2] = ""
@@ -22398,7 +21290,7 @@ function SendData(DataType, Socket)
 		EnemyPokemon[4] = ""
 		EnemyPokemon[5] = ""
 		EnemyPokemon[6] = ""
-		CreatePackett("RPOK", "100")
+		CreatePackett("RPOK", "1000")
 		Socket:send(Packett)
 		while (string.len(EnemyPokemon[6]) < 100 and whiletempmax > 0) do
 			ReceiveData(Socket)
@@ -22409,38 +21301,50 @@ function SendData(DataType, Socket)
 		whiletempmax = whiletempmax - 1
 		end
 	elseif (DataType == "RTRA") then
-		CreatePackett("RTRA", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("RTRA", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "RBAT") then
-		CreatePackett("RBAT", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("RBAT", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "STRA") then
-		CreatePackett("STRA", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("STRA", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "SBAT") then
-		CreatePackett("SBAT", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("SBAT", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "DTRA") then
-		CreatePackett("DTRA", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("DTRA", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "DBAT") then
-		CreatePackett("DBAT", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("DBAT", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "CTRA") then
-		CreatePackett("CTRA", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("CTRA", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "CBAT") then
-		CreatePackett("CBAT", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("CBAT", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "TBUS") then
-		CreatePackett("TBUS", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("TBUS", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "ROFF") then
-		CreatePackett("ROFF", "100")
+		PlayerReceiveID = PlayerTalkingID2
+		CreatePackett("ROFF", "1000")
 		Socket:send(Packett)
 	elseif (DataType == "TRAD") then
+		PlayerReceiveID = PlayerTalkingID2
 		CreatePackettSpecial("TRAD")
 	elseif (DataType == "BATT") then
+		PlayerReceiveID = PlayerTalkingID2
 		CreatePackettSpecial("BATT")
 	end
 end
@@ -22456,64 +21360,40 @@ function ConnectNetwork()
 	if (MasterClient == "h") then
 		
 		if ReceiveTimer == 0 then
-		--Receive data
-		local PlayerData = SocketMain:accept()
-		if (PlayerData ~= nil) then ReceiveData(PlayerData) end
-	--	ReceiveData(PlayerData)
-		if Player2ID ~= "None" then ReceiveData(Player2) end
-		if Player3ID ~= "None" then ReceiveData(Player3) end
-		if Player4ID ~= "None" then ReceiveData(Player4) end
-	end
+			--Receive data
+			local PlayerData = SocketMain:accept()
+			if (PlayerData ~= nil) then ReceiveData(PlayerData) end
+		--	ReceiveData(PlayerData)
+			for j = 1, MaxPlayers do
+				for i = 1, MaxPlayers do
+					if PlayerID ~= i and PlayerIDNick[i] ~= "None" then ReceiveData(Players[i]) end
+				end
+			end
+		end
 		
 
 		--Request and send positions from all players
 		if SendTimer == 0 then 
-		
-		if timeout1 > 0 then timeout1 = timeout1 - 4 end
-		if timeout2 > 0 then timeout2 = timeout2 - 4 end
-		if timeout3 > 0 then timeout3 = timeout3 - 4 end
-		if Player2ID ~= "None" then
-			if timeout1 <= 0 then
-				console:log("Player " .. Player2ID .. " has timed out")
-				ConsoleForText:moveCursor(0,4)
-				ConsoleForText:print("Player " .. Player2ID .. " has been disconnected due to timeout.                              ")
-				ConsoleForText:moveCursor(0,15)
-				ConsoleForText:print("Player 2: Disconnected           ")
-				Player2ID = "None"
-				Player2:close()
+			
+			for i = 1, MaxPlayers do
+				if PlayerID ~= i and PlayerIDNick[i] ~= "None" then
+				--	console:log("timeout for " .. PlayerIDNick[i] .. ": " .. timeout[i])
+				--	console:log("Player: " .. i .. " Time left: " .. timeout[i])
+					if timeout[i] > 0 then timeout[i] = timeout[i] - 4 end
+					if timeout[i] <= 0 then
+						console:log("Player " .. PlayerIDNick[i] .. " has timed out")
+						RemovePlayerFromConsole(i)
+						PlayerIDNick[i] = "None"
+						ErasePlayer(i)
+					--	Players[i]:remove("received",ReceiveData(Players[i]))
+						Players[i]:close()
+					end
+					
+				--	if PlayerIDNick[i] ~= "None" then SendData("GPOS", Players[i]) end
+					if PlayerIDNick[i] ~= "None" then SendData("SPOS", Players[i]) end
+				end
 			end
 		end
-		if Player3ID ~= "None" then
-			if timeout2 <= 0 then
-				ConsoleForText:moveCursor(0,16)
-				ConsoleForText:print("Player 3: Disconnected")
-				ConsoleForText:moveCursor(0,4)
-				ConsoleForText:print("Player 3 has been disconnected due to timeout")
-				Player3ID = "None"
-			end
-		end
-		if Player4ID ~= "None" then
-			if timeout3 <= 0 then
-				ConsoleForText:moveCursor(0,17)
-				ConsoleForText:print("Player 4: Disconnected")
-				ConsoleForText:moveCursor(0,4)
-				ConsoleForText:print("Player 4 has been disconnected due to timeout")
-				Player4ID = "None"
-			end
-		end
-		
-		if Player2ID ~= "None" then SendData("GPos", Player2) end
-		if Player3ID ~= "None" then SendData("GPos", Player3) end
-		if Player4ID ~= "None" then SendData("GPos", Player4) end
-		--Hide players after GPOS
-		TempVar1 = "Player 2"
-		if Player2ID ~= "None" then SendData("SPos", Player2) end
-		TempVar1 = "Player 3"
-		if Player3ID ~= "None" then SendData("SPos", Player3) end
-		TempVar1 = "Player 4"
-		if Player4ID ~= "None" then SendData("SPos", Player4) end
-		end
-		
 	end
 end
 
@@ -22573,7 +21453,7 @@ function Interact()
 					Loadscript(4)
 					Keypressholding = 1
 					Keypress = 1
-					SendData("RTRA", Player2)
+					SendData("RTRA", Players[PlayerTalkingID])
 				
 				elseif Var8000[1] == 3 then
 		--			ConsoleForText:print("Card selected")
@@ -22599,37 +21479,39 @@ function Interact()
 			--SCRIPTS. LOCK AND PREVENT SPAM PRESS. 
 			if LockFromScript == 0 and Keypressholding == 0 and TooBusyByte == 0 then
 				--HIDE N SEEK AT DESK IN ROOM
-				if MasterClient == "h" and ActualPlayerDirection == 3 and MapX == 9 and MapY == 9 and PlayerMapID == 100260 then
+				if MasterClient == "h" and PlayerDirection == 3 and PlayerMapX == 1009 and PlayerMapY == 1009 and PlayerMapID == 100260 then
 				--Server config through bedroom drawer
 					--For temp ram to load up script in 145227776 - 08A80000
 					--8004 is the temp var to get yes or no
 					Loadscript(1)
 					LockFromScript = 1
 				end
-				--Interact with player 2
-				
-				if PlayerID ~= 2 and Player2ID ~= "None" then
-					TalkingDirX = PlayerMapX - MapX2
-					TalkingDirY = PlayerMapY - MapY2
-					if ActualPlayerDirection == 1 and TalkingDirX == 1 and TalkingDirY == 0 then
-				--		ConsoleForText:print("Player2 Left")
+				--Interact with players
+				for i = 1, MaxPlayers do
+					if PlayerID ~= i and PlayerIDNick[i] ~= "None" then
+						TalkingDirX = PlayerMapX - CurrentX[i]
+						TalkingDirY = PlayerMapY - CurrentY[i]
+						if PlayerDirection == 1 and TalkingDirX == 1 and TalkingDirY == 0 then
+					--		ConsoleForText:print("Player Left")
+							
+						elseif PlayerDirection == 2 and TalkingDirX == -1 and TalkingDirY == 0 then
+					--		ConsoleForText:print("Player Right")
+						elseif PlayerDirection == 3 and TalkingDirY == 1 and TalkingDirX == 0 then
+					--		ConsoleForText:print("Player Up")
+						elseif PlayerDirection == 4 and TalkingDirY == -1 and TalkingDirX == 0 then
+					--		ConsoleForText:print("Player Down")
+						end
+						if (PlayerDirection == 1 and TalkingDirX == 1 and TalkingDirY == 0) or (PlayerDirection == 2 and TalkingDirX == -1 and TalkingDirY == 0) or (PlayerDirection == 3 and TalkingDirX == 0 and TalkingDirY == 1) or (PlayerDirection == 4 and TalkingDirX == 0 and TalkingDirY == -1) then
 						
-					elseif ActualPlayerDirection == 2 and TalkingDirX == -1 and TalkingDirY == 0 then
-				--		ConsoleForText:print("Player2 Right")
-					elseif ActualPlayerDirection == 3 and TalkingDirY == 1 and TalkingDirX == 0 then
-				--		ConsoleForText:print("Player2 Up")
-					elseif ActualPlayerDirection == 4 and TalkingDirY == -1 and TalkingDirX == 0 then
-				--		ConsoleForText:print("Player2 Down")
-					end
-					if (ActualPlayerDirection == 1 and TalkingDirX == 1 and TalkingDirY == 0) or (ActualPlayerDirection == 2 and TalkingDirX == -1 and TalkingDirY == 0) or (ActualPlayerDirection == 3 and TalkingDirX == 0 and TalkingDirY == 1) or (ActualPlayerDirection == 4 and TalkingDirX == 0 and TalkingDirY == -1) then
-					
-				--		ConsoleForText:print("Player2 Any direction")
-						emu:write16(Var8000Adr[1], 0) 
-						emu:write16(Var8000Adr[2], 0) 
-						emu:write16(Var8000Adr[14], 0)
-						BufferString = Player2ID
-						Loadscript(2)
-						LockFromScript = 2
+					--		ConsoleForText:print("Player Any direction")
+							emu:write16(Var8000Adr[1], 0) 
+							emu:write16(Var8000Adr[2], 0) 
+							emu:write16(Var8000Adr[14], 0)
+							PlayerTalkingID = i
+							PlayerTalkingID2 = i + 1000
+							LockFromScript = 2
+							Loadscript(2)
+						end
 					end
 				end
 			end
@@ -22638,12 +21520,12 @@ function Interact()
 			if LockFromScript == 4 and Keypressholding == 0 and Var8000[2] ~= 0 then
 				--Cancel battle request
 				Loadscript(15)
-				SendData("CBAT",Player2)
+				SendData("CBAT",Players[PlayerTalkingID])
 				LockFromScript = 0
 			elseif LockFromScript == 5 and Keypressholding == 0 and Var8000[2] ~= 0 then
 				--Cancel trade request
 				Loadscript(16)
-					SendData("CTRA",Player2)
+					SendData("CTRA",Players[PlayerTalkingID])
 				LockFromScript = 0
 				TradeVars[1] = 0
 				TradeVars[2] = 0
@@ -22652,7 +21534,7 @@ function Interact()
 			elseif LockFromScript == 9 and (TradeVars[1] == 2 or TradeVars[1] == 4) and Keypressholding == 0 and Var8000[2] ~= 0 then
 				--Cancel trade request
 				Loadscript(16)
-				SendData("CTRA",Player2)
+				SendData("CTRA",Players[PlayerTalkingID])
 				LockFromScript = 0
 				TradeVars[1] = 0
 				TradeVars[2] = 0
@@ -22679,7 +21561,7 @@ function Interact()
 		--	ConsoleForText:print("Pressed R-Trigger")
 			--	ApplyMovement(0)
 		--		emu:write16(Var8001Adr, 0) 
-			--	BufferString = Player2ID
+			--	BufferString = PlayerIDNick[2]
 		--		Loadscript(12)
 		--		LockFromScript = 5
 		--		local TestString = ReadBuffers(33692880, 4)
@@ -22706,7 +21588,8 @@ function Interact()
 end
 
 function mainLoop()
-	FFTimer = os.clock() - FFTimer2
+
+	FFTimer = os.time() - FFTimer2
 	FFTimer = math.floor(FFTimer)
 	ScriptTime = ScriptTime + 1
 	SendTimer = ScriptTime % ScriptTimeFrame
@@ -22736,6 +21619,8 @@ function mainLoop()
 			ScriptTimeFrame = 52
 		elseif ScriptTimeSpeed >= 900 then
 			ScriptTimeFrame = 60
+		else
+			ScriptTimeFrame = 4
 		end
 	end
 	
@@ -22772,6 +21657,10 @@ function mainLoop()
 					ConsoleForText:moveCursor(0,3)
 					CreateNetwork()
 					ConsoleForText:moveCursor(0,4)
+				elseif MasterClient == "h" then
+					for i = 1, MaxPlayers do
+						if PlayerIDNick[i] ~= "None" then AddPlayerToConsole(i) end
+					end
 				end
 			end
 							--VARS--
@@ -22806,6 +21695,11 @@ function mainLoop()
 			
 		--	if TempVar2 == 0 then ConsoleForText:print("OtherPlayerCanceled: " .. OtherPlayerHasCancelled) end
 			
+			--If you cancel/stop
+			if LockFromScript == 0 then
+				PlayerTalkingID = 0
+			end
+			
 			--Wait until other player accepts battle
 			if LockFromScript == 4 then
 				if Var8000[2] ~= 0 then
@@ -22831,7 +21725,6 @@ function mainLoop()
 					if TextSpeedWait == 2 then
 						TextSpeedWait = 0
 						LockFromScript = 9
-						Loadscript(14)
 					elseif TextSpeedWait == 4 then
 						TextSpeedWait = 0
 						LockFromScript = 7
@@ -22871,8 +21764,8 @@ function mainLoop()
 		--	if Var8000[2] ~= 0 then ConsoleForText:print("Var8001: " .. Var8000[2]) end
 				if Var8000[2] == 2 then
 					if OtherPlayerHasCancelled == 0 then
-						SendData("RPOK", Player2)
-						SendData("SBAT", Player2)
+						SendData("RPOK", Players[PlayerTalkingID])
+						SendData("SBAT", Players[PlayerTalkingID])
 						LockFromScript = 8
 						Loadscript(13)
 					else
@@ -22880,7 +21773,7 @@ function mainLoop()
 						LockFromScript = 7
 						Loadscript(18)
 					end
-				elseif Var8000[2] == 1 then LockFromScript = 0 SendData("DBAT", Player2) Keypressholding = 1 end
+				elseif Var8000[2] == 1 then LockFromScript = 0 SendData("DBAT", Players[PlayerTalkingID]) Keypressholding = 1 end
 				
 			--Player 2 has requested to trade
 			elseif LockFromScript == 13 then
@@ -22888,30 +21781,29 @@ function mainLoop()
 				--If accept, then send that you accept
 				if Var8000[2] == 2 then
 					if OtherPlayerHasCancelled == 0 then
-						SendData("RPOK", Player2)
-						SendData("STRA", Player2)
+						SendData("RPOK", Players[PlayerTalkingID])
+						SendData("STRA", Players[PlayerTalkingID])
 						LockFromScript = 9
-						Loadscript(14)
 					else
 						OtherPlayerHasCancelled = 0
 						LockFromScript = 7
 						Loadscript(19)
 					end
-				elseif Var8000[2] == 1 then LockFromScript = 0 SendData("DTRA", Player2) Keypressholding = 1 end
+				elseif Var8000[2] == 1 then LockFromScript = 0 SendData("DTRA", Players[PlayerTalkingID]) Keypressholding = 1 end
 			end
 	end
 end
 
+console:log("Started GBA-PK_Server.lua")
 if not (emu == nil) then
 	if ConsoleForText == nil then ConsoleForText = console:createBuffer("GBA-PK SERVER") end
-	console:log("Started GBA-PK_Server.lua")
 	ConsoleForText:clear()
 	ConsoleForText:moveCursor(0,1)
-	FFTimer2 = os.clock()
+	FFTimer2 = os.time()
     GetGameVersion()
 end
 
-SocketMain:add("received", ReceiveData)
+--SocketMain:add("received", ConnectNetwork)
 --Player2:add("received", Player2Network)
 --Player3:add("received", Player3Network)
 --Player4:add("received", Player4Network)
