@@ -9,4 +9,4 @@ Patreon: https://www.patreon.com/user?u=81688818
 Youtube: https://www.youtube.com/channel/UCdXg0-BF9FblZ2GTi3u4orQ
 
 
-Pokecommunity: Soon
+Pokecommunity: https://www.pokecommunity.com/showthread.php?t=484949
