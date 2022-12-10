@@ -10,6 +10,7 @@ local GameCode = "None"
 local ConfirmPackett = 0
 local EnableScript = false
 local ClientConnection
+local ScriptRelease = "ALPHA 3"
 
 local u32 SpriteTempVar0 = 0
 local u32 SpriteTempVar1 = 0
@@ -21688,8 +21689,10 @@ console:log("Started GBA-PK_Client.lua")
 if not (emu == nil) then
 	if ConsoleForText == nil then ConsoleForText = console:createBuffer("GBA-PK CLIENT") end
 	ConsoleForText:clear()
-	ConsoleForText:moveCursor(0,1)
+	ConsoleForText:moveCursor(0,0)
 	FFTimer2 = os.time()
+	ConsoleForText:print("Release Version: "..ScriptRelease)
+	ConsoleForText:moveCursor(0,1)
     GetGameVersion()
 end
 
