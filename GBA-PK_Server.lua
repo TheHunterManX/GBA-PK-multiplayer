@@ -42,6 +42,7 @@ local MultiplayerConsoleFlags = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
 local PlayerTalkingID = 0
 local PlayerTalkingID2 = 1000
 local Players = {socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp(),socket:tcp()}
+local IncomingConnections = {} -- used to help manage initial connections
 local PlayerIDNick = {"None","None","None","None","None","None","None","None"}
 local timeout = {0,0,0,0,0,0,0,0}
 local AnimationX = {0,0,0,0,0,0,0,0}
@@ -21360,9 +21361,23 @@ function ConnectNetwork()
 	if (MasterClient == "h") then
 		
 		if ReceiveTimer == 0 then
-			--Receive data
+			-- Receive data
 			local PlayerData = SocketMain:accept()
-			if (PlayerData ~= nil) then ReceiveData(PlayerData) end
+            if PlayerData ~= nil then
+                IncomingConnections[PlayerData] = true
+            end
+
+            -- Accumulate connections into a table and wait for the first packet before removing.
+            -- This fixes a bug with ssh port forwarding (first packet doesn't arrive the same frame as when the connection is established).
+            -- Technically, the IncomingConnections table could grow if you receive lots of connections without a first message, but we can ignore that for now since this mod is designed to be playable with only a few people.
+            for conn, _ in pairs(IncomingConnections) do
+                if conn and conn:hasdata() then
+                    IncomingConnections[conn] = nil
+                    ReceiveData(conn)
+                    console:log("Made an initial connection.")
+                end
+            end
+
 		--	ReceiveData(PlayerData)
 			for j = 1, MaxPlayers do
 				for i = 1, MaxPlayers do
