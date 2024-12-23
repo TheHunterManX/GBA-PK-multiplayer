@@ -1,4 +1,4 @@
-local IPAddress, Port = "127.0.0.1", 4096
+local IPAddress, Port = "26.78.8.245", 4096
 local MaxPlayers = 8
 local ServerType = "c" --can change to "h"/"s" for host, "c" for client
 local Nickname = "" --this can be up to 10 utf8 chars long.
