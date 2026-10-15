@@ -1,10 +1,8 @@
 # GBA-PK-multiplayer
 
-This is a free mod that will in the future support interactions between all of the 3rd generation pokemon games. Alpha 3 currently allows 4 players to see and trade with each other in the game of Firered or Leafgreen. Updates and more information can be found on youtube, patreon or pokecommunity.
+This is a free mod that supports all versions and languages of generation 3 pokemon games. Release 1.0 is now out! It is massively improved to ALPHA 4.0, with new game modes you can access in the new MULTI option found in the start menu.
 
-
-Patreon: https://www.patreon.com/user?u=81688818
-
+Dedicated server coming soon.
 
 Youtube: https://www.youtube.com/channel/UCdXg0-BF9FblZ2GTi3u4orQ
 
